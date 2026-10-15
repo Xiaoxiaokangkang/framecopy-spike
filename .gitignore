@@ -1,0 +1,8 @@
+data/
+bin/
+.cache/
+.DS_Store
+.idea/
+.vscode/
+*.log
+npm-debug.log*

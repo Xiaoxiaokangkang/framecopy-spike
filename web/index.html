@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f0e8">
+  <title>帧文案 · 从画面里拿回文字</title>
+  <meta name="description" content="上传本地视频，提取画面中的有效文字并整理为可核查的 Markdown。">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="帧文案首页"><span>帧</span>文案</a>
+    <div class="privacy"><i></i> 本机处理 · 不上传第三方</div>
+  </header>
+
+  <main>
+    <section id="upload-view" class="view hero">
+      <div class="eyebrow">FRAMECOPY / SPIKE 0.1</div>
+      <h1>让视频画面里的文字，<br><em>重新成为文案。</em></h1>
+      <p class="lead">识别标题、图表与逐字动画；合并重复画面；每一段结果都能回到原始关键帧核查。</p>
+      <div id="drop-zone" class="drop-zone" tabindex="0" role="button" aria-label="选择或拖入视频">
+        <input id="file-input" type="file" accept="video/*,.mkv" hidden>
+        <div class="drop-icon">↗</div>
+        <div>
+          <strong>拖入一段视频</strong>
+          <span>或点击选择本地文件</span>
+        </div>
+        <button id="choose-button" class="primary" type="button">选择视频</button>
+        <small>MP4、MOV、WEBM、MKV · 最长 10 分钟 · 最大 200 MB</small>
+      </div>
+
+      <div id="file-card" class="file-card hidden">
+        <div class="file-symbol">▶</div>
+        <div class="file-meta"><strong id="file-name"></strong><span id="file-info"></span></div>
+        <button id="clear-file" class="icon-button" aria-label="移除视频">×</button>
+      </div>
+
+      <details class="settings">
+        <summary>识别设置 <span>默认设置已适合大多数视频</span></summary>
+        <div class="setting-grid">
+          <label><span>处理模式</span><select id="mode" disabled><option value="accurate" selected>高精度 · 已默认开启</option></select></label>
+          <label><span>识别语言</span><select disabled><option>自动 · 简中 / 繁中 / 英文</option></select></label>
+        </div>
+      </details>
+      <button id="start-button" class="start-button hidden" type="button">开始提取画面文案 <span>→</span></button>
+
+      <div class="trust-row">
+        <span><b>01</b> 本机离线 OCR</span><span><b>02</b> 结果可逐帧核查</span><span><b>03</b> 不做语音转写</span>
+      </div>
+    </section>
+
+    <section id="progress-view" class="view progress-view hidden">
+      <button class="text-button back-home" type="button">← 返回首页</button>
+      <div class="progress-card">
+        <div class="pulse-ring"><span id="progress-number">0</span><small>%</small></div>
+        <div class="progress-copy">
+          <div class="eyebrow">正在处理 / <span id="job-short-id"></span></div>
+          <h2 id="progress-stage">正在准备视频</h2>
+          <p id="progress-detail">建立本地任务目录…</p>
+          <div class="progress-track"><i id="progress-bar"></i></div>
+          <ol id="stage-list">
+            <li data-stage="validating">检查视频</li><li data-stage="analyzing">分析画面</li><li data-stage="recognizing">识别文字</li><li data-stage="merging">合并重复</li><li data-stage="generating">生成结果</li>
+          </ol>
+          <button id="cancel-button" class="secondary danger" type="button">取消任务</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="result-view" class="view result-view hidden">
+      <div class="result-heading">
+        <div><div class="eyebrow">提取完成 / <span id="result-job-id"></span></div><h2>画面文案</h2><p id="result-summary"></p></div>
+        <div class="actions"><button id="restore-button" class="secondary">恢复自动结果</button><a id="download-clean" class="primary" download>下载 Markdown</a></div>
+      </div>
+      <div id="review-banner" class="review-banner hidden">有低置信度段落需要核查。点击带琥珀色标记的段落即可查看关键帧。</div>
+      <div class="workspace">
+        <div class="segments-panel">
+          <div class="panel-label"><span>文案段落</span><span id="save-status">已自动保存</span></div>
+          <div id="segments"></div>
+        </div>
+        <aside class="evidence-panel">
+          <div class="panel-label"><span>关键帧证据</span><span id="evidence-time"></span></div>
+          <div class="frame-wrap"><img id="evidence-image" alt="当前文案对应的视频关键帧"><div id="frame-empty">选择左侧段落以核查画面</div></div>
+          <div class="ocr-info"><span>原始 OCR</span><p id="raw-text">—</p></div>
+        </aside>
+      </div>
+      <div class="download-row">
+        <a id="download-timed" class="secondary" download>带时间戳版</a><a id="download-raw" class="secondary" download>原始 OCR</a><a id="download-manifest" class="secondary" download>Manifest</a>
+      </div>
+    </section>
+
+    <section id="error-view" class="view error-view hidden">
+      <div class="error-mark">!</div><div><div class="eyebrow">任务未完成</div><h2 id="error-title">处理失败</h2><p id="error-detail"></p><button class="primary back-home">换一个视频</button></div>
+    </section>
+  </main>
+  <footer><span>帧文案 Spike · 核心链路技术验证</span><span>原视频仅保存在当前 Mac 的任务目录</span></footer>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
