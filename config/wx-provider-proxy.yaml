@@ -1,0 +1,26 @@
+workdir: "./data/wx-provider"
+
+api:
+  protocol: "http"
+  hostname: "127.0.0.1"
+  port: 2022
+
+mcp:
+  enabled: false
+
+proxy:
+  enabled: true
+  system: true
+  hostname: "127.0.0.1"
+  port: 2023
+  tun: false
+  skipInstallRootCert: false
+
+download:
+  dir: "./data/wx-provider/downloads"
+  playDoneAudio: false
+  maxRunning: 1
+
+debug:
+  error: false
+  echolog: false

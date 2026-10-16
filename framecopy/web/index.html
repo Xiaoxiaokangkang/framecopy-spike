@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f6f2e9">
+  <title>帧文案 · 从画面里取回文字</title>
+  <link rel="stylesheet" href="/static/app.css?v=0.3.0">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div class="brand"><span class="brand-mark">帧</span><span>帧文案</span></div>
+      <p class="eyebrow">FRAME TO WORDS</p>
+      <h1>从画面里，<br><em>取回真正的文案。</em></h1>
+      <p class="lede">粘贴视频号链接或上传本地视频。系统在你的处理环境中完成抽帧、OCR、去重和整理，并保留每一段文字的画面证据。</p>
+    </header>
+
+    <section class="workspace card">
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="link" role="tab">粘贴视频号链接</button>
+        <button class="tab" data-tab="upload" role="tab">上传本地视频</button>
+      </div>
+
+      <form id="link-form" class="panel active">
+        <label for="share-text">分享链接或整段分享文字</label>
+        <textarea id="share-text" placeholder="在微信视频号点击分享 → 复制链接，然后粘贴到这里" rows="5" required></textarea>
+        <button type="button" class="ghost paste-button" id="paste-button">从剪贴板粘贴</button>
+        <div class="provider-status" id="provider-status">正在检查视频号解析服务…</div>
+        <details class="provider-setup" id="provider-setup">
+          <summary>视频号自动解析设置</summary>
+          <div class="provider-setup-body">
+            <p>只需配置一次，之后粘贴链接即可自动下载，无需打开电脑版微信。Cookie 仅加密保存在这台电脑上，不会在页面回显。</p>
+            <ol>
+              <li><a href="https://yuanbao.tencent.com/" target="_blank" rel="noreferrer">登录腾讯元宝</a>。</li>
+              <li>在浏览器开发者工具的 Network 中，选择一条 <code>yuanbao.tencent.com</code> 请求，复制 Request Headers 里的 <code>cookie</code> 值。</li>
+              <li>粘贴到下方并保存。凭证过期时重复这一步即可。</li>
+            </ol>
+            <label for="yuanbao-cookie">元宝 Cookie</label>
+            <textarea id="yuanbao-cookie" rows="3" autocomplete="off" spellcheck="false" placeholder="粘贴 Cookie 值，不要发送给他人"></textarea>
+            <div class="credential-actions">
+              <button type="button" class="ghost" id="save-credential">加密保存</button>
+              <button type="button" class="text-button" id="delete-credential">删除已保存凭证</button>
+            </div>
+            <p class="credential-message" id="credential-message" hidden></p>
+          </div>
+        </details>
+        <button class="primary" type="submit">开始提取画面文案 <span>→</span></button>
+      </form>
+
+      <form id="upload-form" class="panel">
+        <label class="dropzone" for="video-file">
+          <input id="video-file" name="file" type="file" accept="video/*,.mkv" required>
+          <span class="drop-icon">＋</span>
+          <strong>选择一个视频</strong>
+          <small>MP4、MOV、WEBM、MKV · 最长 10 分钟 · 最大 200 MB</small>
+          <span id="file-name" class="file-name"></span>
+        </label>
+        <button class="primary" type="submit">上传并开始提取 <span>→</span></button>
+      </form>
+
+      <div class="message" id="message" hidden></div>
+    </section>
+
+    <section class="principles">
+      <article><span>01</span><h2>只看画面</h2><p>识别标题、正文、图表和脚注，不做语音转写。</p></article>
+      <article><span>02</span><h2>合并重复</h2><p>逐字动画只保留稳定末态，相邻重复内容自动合并。</p></article>
+      <article><span>03</span><h2>可以核查</h2><p>低置信度内容连同时间戳和关键帧一起呈现。</p></article>
+    </section>
+
+    <footer>视频仅用于当前任务 · 原视频默认 24 小时后删除 · 结果默认保留 7 天</footer>
+  </main>
+  <script src="/static/home.js?v=0.3.0" defer></script>
+</body>
+</html>
+

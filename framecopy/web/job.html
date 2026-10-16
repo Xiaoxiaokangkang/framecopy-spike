@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>任务 · 帧文案</title>
+  <link rel="stylesheet" href="/static/app.css?v=0.2.0">
+</head>
+<body>
+  <main class="shell job-shell">
+    <nav class="topbar"><a href="/" class="brand"><span class="brand-mark">帧</span><span>帧文案</span></a><span id="save-state">自动保存已开启</span></nav>
+    <section id="processing" class="processing card">
+      <p class="eyebrow">PROCESSING</p>
+      <h1 id="stage-label">正在读取任务…</h1>
+      <div class="progress-track"><div id="progress-bar"></div></div>
+      <div class="progress-meta"><span id="progress-text">准备中</span><span id="progress-number">0%</span></div>
+      <p class="muted">可以关闭这个页面。请保存当前地址，稍后可继续查看结果。</p>
+      <button id="cancel-button" class="ghost danger">取消任务</button>
+    </section>
+
+    <section id="failure" class="card failure" hidden>
+      <p class="eyebrow">NEEDS ATTENTION</p>
+      <h1>这次没有顺利完成</h1>
+      <p id="error-message"></p>
+      <a class="primary button-link" href="/?tab=upload">改用本地视频上传 <span>→</span></a>
+    </section>
+
+    <section id="result" hidden>
+      <header class="result-header">
+        <div><p class="eyebrow">RESULT</p><h1>画面文案</h1><p id="result-meta" class="muted"></p></div>
+        <div class="actions">
+          <button id="restore-button" class="ghost">恢复自动结果</button>
+          <button id="download-all" class="primary">下载核查资料</button>
+        </div>
+      </header>
+      <div class="result-grid">
+        <div id="segments" class="segments"></div>
+        <aside class="evidence card">
+          <div class="evidence-placeholder" id="evidence-placeholder">选择一段文字<br>查看对应关键帧</div>
+          <img id="evidence-image" alt="文字对应的关键帧" hidden>
+          <div id="evidence-caption"></div>
+        </aside>
+      </div>
+      <div class="download-bar card">
+        <a data-download="视频文案-纯净版.md">纯净版 Markdown</a>
+        <a data-download="视频文案-带时间戳.md">带时间戳 Markdown</a>
+        <a data-download="原始OCR.jsonl">原始 OCR</a>
+      </div>
+    </section>
+  </main>
+  <script src="/static/job.js?v=0.2.0" defer></script>
+</body>
+</html>
+

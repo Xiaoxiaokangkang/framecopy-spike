@@ -1,0 +1,13 @@
+.venv/
+.tools/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.DS_Store
+.env
+# 运行数据可能包含视频、数据库、加密 Cookie 和本机密钥，不得提交。
+/data/
+config/data/
+*.pyc
+

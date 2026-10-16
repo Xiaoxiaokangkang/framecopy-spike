@@ -1,0 +1,34 @@
+services:
+  web:
+    build: .
+    command: .venv/bin/framecopy --host 0.0.0.0 --port 8000
+    environment:
+      FRAMECOPY_QUEUE_BACKEND: dramatiq
+      FRAMECOPY_REDIS_URL: redis://redis:6379/0
+      FRAMECOPY_SECRET_KEY: ${FRAMECOPY_SECRET_KEY:?set FRAMECOPY_SECRET_KEY}
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - framecopy-data:/srv/framecopy/data
+    depends_on:
+      - redis
+  worker:
+    build: .
+    command: .venv/bin/dramatiq framecopy.worker --processes 1 --threads 1
+    environment:
+      FRAMECOPY_QUEUE_BACKEND: dramatiq
+      FRAMECOPY_REDIS_URL: redis://redis:6379/0
+      FRAMECOPY_SECRET_KEY: ${FRAMECOPY_SECRET_KEY:?set FRAMECOPY_SECRET_KEY}
+    volumes:
+      - framecopy-data:/srv/framecopy/data
+    depends_on:
+      - redis
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+
+volumes:
+  framecopy-data:
+  redis-data:
