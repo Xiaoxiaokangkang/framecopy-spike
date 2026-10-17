@@ -43,7 +43,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(
     title="帧文案",
     description="本地优先的视频画面与语音文案提取工具",
-    version="0.4.0",
+    version="0.4.1",
     lifespan=lifespan,
 )
 app.include_router(create_router(settings, database, queue))

@@ -27,6 +27,8 @@ if [ "$(uname -s)" = "Darwin" ]; then
   speech_python="python3"
   if [ -x ".venv-speech/bin/python" ]; then
     speech_python=".venv-speech/bin/python"
+  elif [ -x ".venv/bin/python" ]; then
+    speech_python=".venv/bin/python"
   fi
   if "$speech_python" -c 'import mlx_whisper' >/dev/null 2>&1; then
     echo "MLX Whisper 语音识别环境可用"

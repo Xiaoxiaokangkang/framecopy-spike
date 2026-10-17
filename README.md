@@ -2,7 +2,7 @@
 
 一个本地优先、移动端友好的视频文案提取工具。提交前选择“画面文字”或“语音文案”，只运行被选中的本地处理流程。
 
-> 当前版本：`0.4.0`。画面 OCR 延用现有流程；语音转写在 Apple Silicon Mac 上通过可选的 MLX Whisper 本地运行。
+> 当前版本：`0.4.1`。画面 OCR 延用现有流程；语音转写在 Apple Silicon Mac 上通过可选的 MLX Whisper 本地运行。
 
 ## 已实现功能
 
@@ -76,10 +76,29 @@ data/                  运行数据，已被 Git 忽略
 
 ## macOS 本地启动
 
+### Apple 芯片 Mac 一键安装（推荐）
+
+从 GitHub 下载或克隆项目后，在 Finder 中打开项目文件夹：
+
+1. 双击 `安装帧文案.command`。
+2. 根据 macOS 提示完成 Apple 命令行工具或 Homebrew 安装；如果安装器暂停，完成系统安装后再双击一次。
+3. 等待 FFmpeg、Python、项目依赖和本地语音模型安装完成。首次安装需要下载较大的模型，并会进行一次实际加载校验。
+4. 双击 `启动帧文案.command`，程序会在后台启动并自动打开浏览器。
+
+安装器面向 M1/M2/M3/M4 等 Apple 芯片 Mac，统一使用 Python 3.12，不再要求分别维护主程序和语音识别两个 Python 环境。已有 `.env` 会被保留，不会覆盖。
+
+需要粘贴视频号链接时，还需从 [`ltaoo/wx_channels_download` Releases](https://github.com/ltaoo/wx_channels_download/releases) 下载 macOS Apple 芯片版本并解压，然后双击 `配置视频号解析器.command`，在弹窗中选择解压得到的 `wx_video_download` 文件。第三方解析器未配置时，本地视频上传仍可正常使用。
+
+以后使用时只需双击 `启动帧文案.command`；需要停止后台服务时，双击 `停止帧文案.command`。运行日志保存在 `data/logs/framecopy.log`。
+
+如果 macOS 首次打开 `.command` 文件时阻止运行，可在 Finder 中按住 Control 点击该文件，选择“打开”，再确认一次。不要把其他电脑的 `.env`、`data/` 或 Cookie 文件复制过来。
+
+### 手动安装与启动
+
 ```bash
 brew install ffmpeg uv
-uv python install 3.10
-uv sync --python 3.10 --extra dev
+uv python install 3.12
+uv sync --python 3.12 --extra dev --extra speech
 cp .env.example .env
 uv run framecopy
 ```
@@ -90,13 +109,14 @@ macOS 默认使用 Apple Vision，不需要下载 OCR 模型。首次识别会�
 
 ## 本地语音识别
 
-语音模式当前面向 Apple Silicon macOS，使用可选依赖：
+语音模式当前面向 Apple Silicon macOS。推荐直接使用上方的一键安装器；手动安装时可以与主程序共用 Python 3.12 环境：
 
 ```bash
-uv sync --python 3.10 --extra dev --extra speech
+uv sync --python 3.12 --extra dev --extra speech
+uv run python scripts/prepare_speech_model.py --verify-load
 ```
 
-如果 Python 3.10 在新版 macOS 上遇到 SciPy 二进制兼容问题，可创建独立语音环境：
+如果需要保留已有的 Python 3.10 主环境，也可以创建独立语音环境：
 
 ```bash
 uv venv --python 3.12 .venv-speech
