@@ -19,14 +19,20 @@ ERROR_MESSAGES = {
     "LINK_CONTENT_UNAVAILABLE": "视频已失效、删除、设为私密或暂时无法访问。",
     "LINK_DOWNLOAD_FAILED": "视频获取失败，请稍后重试或上传本地视频。",
     "FILE_TOO_LARGE": "视频超过 200 MB 限制。",
-    "DURATION_EXCEEDED": "视频超过 10 分钟限制。",
+    "DURATION_EXCEEDED": "视频超过 30 分钟限制。",
     "UNSUPPORTED_MEDIA": "无法识别该视频格式或编码。",
     "MEDIA_CORRUPTED": "视频已损坏或无法解码。",
     "NO_TEXT_DETECTED": "视频处理完成，但没有检测到有效的画面文字。",
     "OCR_INITIALIZATION_FAILED": "本地 OCR 引擎未就绪，请检查安装状态。",
+    "SPEECH_ENVIRONMENT_UNAVAILABLE": "本地语音识别引擎尚未就绪，请先完成本机配置。",
+    "AUDIO_TRACK_MISSING": "视频中没有可识别的音轨。",
+    "NO_SPEECH_DETECTED": "视频处理完成，但没有检测到可识别的人声。",
+    "AUDIO_EXTRACTION_FAILED": "无法从视频中提取音轨。",
+    "TRANSCRIPTION_FAILED": "本地语音识别失败，请记录任务编号。",
     "PROCESSING_TIMEOUT": "处理时间超过限制，任务已安全终止。",
     "RESULT_GENERATION_FAILED": "结果文件生成失败，中间识别结果已保留。",
     "TASK_EXPIRED": "任务已超过保留期限并被删除。",
+    "SOURCE_CLEANUP_FAILED": "文案已经生成，但临时视频清理失败，请立即检查本机任务目录。",
 }
 
 

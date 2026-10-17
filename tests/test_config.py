@@ -17,3 +17,10 @@ def test_ocr_provider_defaults_and_overrides(monkeypatch, tmp_path: Path) -> Non
     loaded = Settings.from_env()
     assert loaded.ocr_provider == "paddleocr"
     assert loaded.ocr_fallback_enabled is False
+
+
+def test_default_duration_limit_is_thirty_minutes(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("FRAMECOPY_DATA_DIR", str(tmp_path))
+    monkeypatch.delenv("FRAMECOPY_MAX_DURATION_SECONDS", raising=False)
+    loaded = Settings.from_env()
+    assert loaded.max_duration_seconds == 30 * 60

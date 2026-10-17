@@ -11,15 +11,24 @@ class JobStatus(str, Enum):
     RESOLVING_LINK = "resolving_link"
     DOWNLOADING = "downloading"
     VALIDATING = "validating"
+    PREPARING = "preparing"
     ANALYZING = "analyzing"
     EXTRACTING_FRAMES = "extracting_frames"
+    EXTRACTING_AUDIO = "extracting_audio"
+    TRANSCRIBING = "transcribing"
     RECOGNIZING = "recognizing"
     MERGING = "merging"
     GENERATING = "generating"
+    CLEANING_SOURCE = "cleaning_source"
     READY = "ready"
     FAILED = "failed"
     CANCEL_REQUESTED = "cancel_requested"
     CANCELLED = "cancelled"
+
+
+class ExtractionMode(str, Enum):
+    VISUAL = "visual"
+    SPEECH = "speech"
 
 
 @dataclass
@@ -82,6 +91,28 @@ class Segment:
     evidence_frame: str
     needs_review: bool = False
     clean_eligible: bool = True
+    user_text: str | None = None
+
+    @property
+    def effective_text(self) -> str:
+        return self.user_text if self.user_text is not None else self.clean_text
+
+    def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data["effective_text"] = self.effective_text
+        return data
+
+
+@dataclass
+class SpeechSegment:
+    sequence: int
+    start_time: float
+    end_time: float
+    raw_text: str
+    clean_text: str
+    confidence: float = 0.0
+    language: str = ""
+    needs_review: bool = False
     user_text: str | None = None
 
     @property

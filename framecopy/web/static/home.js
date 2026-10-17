@@ -1,6 +1,8 @@
 const tabs = document.querySelectorAll('.tab');
 const panels = { link: document.querySelector('#link-form'), upload: document.querySelector('#upload-form') };
 const message = document.querySelector('#message');
+const modeStatus = document.querySelector('#mode-status');
+let speechStatus = null;
 
 function selectTab(name) {
   tabs.forEach(tab => tab.classList.toggle('active', tab.dataset.tab === name));
@@ -9,6 +11,47 @@ function selectTab(name) {
 }
 tabs.forEach(tab => tab.addEventListener('click', () => selectTab(tab.dataset.tab)));
 if (new URLSearchParams(location.search).get('tab') === 'upload') selectTab('upload');
+
+document.querySelectorAll('input[name="extraction-mode"]').forEach(input => {
+  input.addEventListener('change', updateModeStatus);
+});
+const requestedMode = new URLSearchParams(location.search).get('mode');
+if (['visual', 'speech'].includes(requestedMode)) {
+  document.querySelector(`input[name="extraction-mode"][value="${requestedMode}"]`).checked = true;
+}
+
+async function refreshSpeechStatus() {
+  try {
+    const response = await fetch('/api/providers/speech/status');
+    speechStatus = await response.json();
+  } catch {
+    speechStatus = {available: false, message: '无法读取本地语音识别状态'};
+  }
+  updateModeStatus();
+}
+
+function selectedMode() {
+  return document.querySelector('input[name="extraction-mode"]:checked')?.value || '';
+}
+
+function updateModeStatus() {
+  const mode = selectedMode();
+  modeStatus.classList.remove('bad');
+  if (!mode) {
+    modeStatus.textContent = '请先选择提取内容';
+  } else if (mode === 'visual') {
+    modeStatus.textContent = '将识别画面文字并保留关键帧';
+  } else if (!speechStatus) {
+    modeStatus.textContent = '正在检查语音识别环境…';
+  } else {
+    modeStatus.textContent = speechStatus.available
+      ? '本地语音识别已就绪'
+      : `${speechStatus.message}。不会先获取视频。`;
+    modeStatus.classList.toggle('bad', !speechStatus.available);
+  }
+}
+
+refreshSpeechStatus();
 
 document.querySelector('#paste-button').addEventListener('click', async () => {
   try { document.querySelector('#share-text').value = await navigator.clipboard.readText(); }
@@ -71,19 +114,24 @@ document.querySelector('#delete-credential').addEventListener('click', async () 
 
 document.querySelector('#link-form').addEventListener('submit', async event => {
   event.preventDefault();
+  const extractionMode = selectedMode();
+  if (!extractionMode) return showError('请先选择“画面文字”或“语音文案”。');
   await submit('/api/jobs/link', {
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({text: document.querySelector('#share-text').value})
+    body: JSON.stringify({text: document.querySelector('#share-text').value, extraction_mode: extractionMode})
   });
 });
 
 document.querySelector('#upload-form').addEventListener('submit', async event => {
   event.preventDefault();
   const file = document.querySelector('#video-file').files[0];
+  const extractionMode = selectedMode();
+  if (!extractionMode) return showError('请先选择“画面文字”或“语音文案”。');
   if (!file) return showError('请先选择视频文件。');
   if (file.size > 200 * 1024 * 1024) return showError('视频超过 200 MB 限制。');
   const data = new FormData();
   data.append('file', file);
+  data.append('extraction_mode', extractionMode);
   await submit('/api/jobs/upload', {body: data});
 });
 

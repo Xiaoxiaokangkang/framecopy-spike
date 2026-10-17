@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -27,37 +26,19 @@ def generate_outputs(
     ocr_summary: dict | None = None,
 ) -> list[Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
-    clean = ["# 视频画面文案（纯净版）", ""]
-    timed = ["# 视频画面文案（带时间戳版）", ""]
-    review = ["# 视频画面文案核查说明", "", "低置信度段落已标记，请结合关键帧核对。", ""]
-    for segment in segments:
-        if segment.clean_eligible:
-            clean.extend([segment.effective_text, ""])
-        timed_text = segment.user_text if segment.user_text is not None else segment.consensus_text
-        timed.extend([f"## {format_timestamp(segment.start_time)}", "", timed_text, ""])
-        if segment.needs_review or not segment.clean_eligible:
-            reason = "未进入纯净版" if not segment.clean_eligible else "建议核查"
-            review.extend([
-                f"- {format_timestamp(segment.start_time)} · {reason} · 质量分 {segment.confidence:.0%}",
-                f"  - `{Path(segment.evidence_frame).name}`",
-            ])
-    clean_path = output_dir / "视频文案-纯净版.md"
-    timed_path = output_dir / "视频文案-带时间戳.md"
-    review_path = output_dir / "视频文案-核查说明.md"
-    raw_path = output_dir / "原始OCR.jsonl"
-    clean_path.write_text("\n".join(clean).rstrip() + "\n", encoding="utf-8")
-    timed_path.write_text("\n".join(timed).rstrip() + "\n", encoding="utf-8")
-    review_path.write_text("\n".join(review).rstrip() + "\n", encoding="utf-8")
-    raw_path.write_text(
-        "\n".join(json.dumps(frame.to_dict(), ensure_ascii=False) for frame in frames) + "\n",
-        encoding="utf-8",
+    readable_path = write_readable_markdown(
+        output_dir,
+        "视频画面文案",
+        [segment.to_dict() for segment in segments],
     )
-    generated = [clean_path, timed_path, review_path, raw_path]
+    remove_legacy_exports(output_dir)
+    generated = [readable_path]
     manifest_path = output_dir / "manifest.json"
     manifest = {
         "input_sha256": _sha256(input_path),
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "pipeline_version": "0.2.0",
+        "pipeline_version": "0.4.0",
+        "extraction_mode": "visual",
         "ocr": ocr_summary or _ocr_summary(frames),
         "video": {
             "duration": info.duration,
@@ -72,6 +53,7 @@ def generate_outputs(
             "clean_segments": sum(1 for item in segments if item.clean_eligible),
             "review_segments": sum(1 for item in segments if item.needs_review),
         },
+        "source_cleanup": {"status": "pending", "deleted_at": None},
         "files": [
             {"name": path.name, "size": path.stat().st_size, "sha256": _sha256(path)}
             for path in generated
@@ -82,18 +64,34 @@ def generate_outputs(
 
 
 def regenerate_markdown(output_dir: Path, segments: list[dict]) -> None:
-    clean = ["# 视频画面文案（纯净版）", ""]
-    timed = ["# 视频画面文案（带时间戳版）", ""]
+    write_readable_markdown(output_dir, "视频画面文案", segments)
+    remove_legacy_exports(output_dir)
+
+
+def write_readable_markdown(output_dir: Path, title: str, segments: list[dict]) -> Path:
+    lines = [f"# {title}", ""]
     for segment in segments:
-        text = segment["effective_text"]
-        if segment.get("clean_eligible", 1):
-            clean.extend([text, ""])
-        timed_text = segment.get("user_text")
-        if timed_text is None:
-            timed_text = segment.get("consensus_text", text)
-        timed.extend([f"## {format_timestamp(segment['start_time'])}", "", timed_text, ""])
-    (output_dir / "视频文案-纯净版.md").write_text("\n".join(clean).rstrip() + "\n", encoding="utf-8")
-    (output_dir / "视频文案-带时间戳.md").write_text("\n".join(timed).rstrip() + "\n", encoding="utf-8")
+        text = str(
+            segment.get("effective_text")
+            or segment.get("clean_text")
+            or segment.get("raw_text")
+            or ""
+        ).strip()
+        if text:
+            lines.extend([text, ""])
+    path = output_dir / "可读文案.md"
+    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    return path
+
+
+def remove_legacy_exports(output_dir: Path) -> None:
+    for name in (
+        "视频文案-纯净版.md", "视频文案-带时间戳.md",
+        "视频文案-核查说明.md", "原始OCR.jsonl",
+        "语音文案-可读版.md", "语音文案-带时间戳.md", "语音字幕.srt",
+        "原始语音识别.jsonl", "语音文案-核查说明.md",
+    ):
+        (output_dir / name).unlink(missing_ok=True)
 
 
 def _sha256(path: Path) -> str:

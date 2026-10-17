@@ -1,4 +1,5 @@
 .venv/
+.venv-speech/
 .tools/
 __pycache__/
 .pytest_cache/

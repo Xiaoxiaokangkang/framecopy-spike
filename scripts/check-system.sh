@@ -24,5 +24,14 @@ if [ "$(uname -s)" = "Darwin" ]; then
   else
     echo "警告：未找到 swiftc，Apple Vision 不可用，将尝试 PaddleOCR 回退"
   fi
+  speech_python="python3"
+  if [ -x ".venv-speech/bin/python" ]; then
+    speech_python=".venv-speech/bin/python"
+  fi
+  if "$speech_python" -c 'import mlx_whisper' >/dev/null 2>&1; then
+    echo "MLX Whisper 语音识别环境可用"
+  else
+    echo "提示：未安装 MLX Whisper，画面文字仍可正常使用；语音文案需安装 speech 可选依赖"
+  fi
 fi
 

@@ -1,47 +1,44 @@
 # 帧文案 Framecopy
 
-一个本地优先、移动端友好的视频画面文案提取工具。它从视频画面中提取标题、正文、图表和字幕，合并逐字动画与重复画面，最终输出可编辑、可核查的 Markdown。
+一个本地优先、移动端友好的视频文案提取工具。提交前选择“画面文字”或“语音文案”，只运行被选中的本地处理流程。
 
-> 当前版本：`0.3.0`。已实现画面 OCR；语音转写仍在产品设计阶段，不包含在当前代码中。
+> 当前版本：`0.4.0`。画面 OCR 延用现有流程；语音转写在 Apple Silicon Mac 上通过可选的 MLX Whisper 本地运行。
 
 ## 已实现功能
 
 - 粘贴视频号链接或上传本地视频。
+- 在获取或上传前明确选择画面文字或语音文案，不自动猜测。
 - 视频号优先通过本机加密保存的元宝 Cookie 自动解析，失败时回退到电脑版微信页面通道。
-- 最大 200 MB、最长 10 分钟、最高 4K 的输入校验。
+- 最大 200 MB、最长 30 分钟、最高 4K 的输入校验。
 - FFmpeg/ffprobe 视频探测与 OpenCV 候选帧筛选。
 - macOS 默认使用 Apple Vision Accurate，其他环境可使用 PaddleOCR。
 - 清晰度筛选、感知哈希去重、文字坐标轨迹、稳定末态选择和多帧纠错。
-- 在线编辑、自动保存、恢复自动结果和整包下载。
+- 在线编辑、自动保存、恢复自动结果和单个 Markdown 可读文案下载。
 - 可取消、可重试的本地单并发任务队列。
 - SQLite WAL、高熵任务访问令牌与自动过期清理。
+- 语音模式生成包含全部已保存文案的 Markdown 可读版。
+- 任务成功、失败或取消后删除应用私有目录中的原视频、临时音轨和工作文件。
 
 ## 处理流程
 
 ```text
-视频号链接 / 本地视频
+视频号链接 / 本地视频 + 明确的提取模式
             ↓
-      获取并校验视频
+      临时获取并校验视频
             ↓
-   候选帧筛选与画面去重
+   画面 OCR 或 MLX Whisper 语音识别
             ↓
-     Apple Vision / PaddleOCR
+     可编辑结果与核查资料
             ↓
-   重复文字合并与多帧纠错
-            ↓
-  可编辑结果 + 时间戳 + 关键帧
+  自动删除原视频和临时工作文件
 ```
 
 ## 输出内容
 
-每个完成的任务可生成：
+每个完成的任务只向用户提供一个下载文件：
 
-- `视频文案-纯净版.md`：过滤低置信度孤立内容后的可用文案。
-- `视频文案-带时间戳.md`：保留每段文字的视频时间。
-- `视频文案-核查说明.md`：低置信度和建议核查项。
-- `原始OCR.jsonl`：原始识别数据。
-- `manifest.json`：视频、OCR Provider、模型和回退信息。
-- 关键帧图片与核查资料 ZIP。
+- 可读文案：包含页面上当前已保存的全部文案，不含时间戳、字幕、JSON 或关键帧。下载文件名优先使用视频标题，没有标题时使用第一句文案，并自动清理不合法字符。
+- `manifest.json`仅作为程序内部的处理和清理记录，不对用户下载。
 
 ## 技术架构
 
@@ -52,6 +49,7 @@
 - 视频处理：FFmpeg/ffprobe + OpenCV
 - macOS OCR：Apple Vision Accurate
 - 跨平台 OCR：PaddleOCR
+- macOS 语音识别：MLX Whisper（可选依赖）
 - 前端：原生 HTML/CSS/JavaScript
 
 ## 目录结构
@@ -89,6 +87,25 @@ uv run framecopy
 打开 <http://127.0.0.1:8000>。本地测试阶段不需要邀请码。
 
 macOS 默认使用 Apple Vision，不需要下载 OCR 模型。首次识别会使用系统 Swift 编译器生成本地 Helper。
+
+## 本地语音识别
+
+语音模式当前面向 Apple Silicon macOS，使用可选依赖：
+
+```bash
+uv sync --python 3.10 --extra dev --extra speech
+```
+
+如果 Python 3.10 在新版 macOS 上遇到 SciPy 二进制兼容问题，可创建独立语音环境：
+
+```bash
+uv venv --python 3.12 .venv-speech
+uv pip install --python .venv-speech/bin/python mlx-whisper==0.4.3
+```
+
+应用会自动优先使用 `.venv-speech/bin/python`，画面 OCR 继续使用原有 `.venv`，两者不会互相污染。
+
+默认模型为 `mlx-community/whisper-large-v3-turbo`。模型首次使用时可能需要下载；识别时音轨不上传到按次收费的语音 API。未安装时，首页会明确提示，并在获取或上传视频前拒绝语音任务；画面文字不受影响。
 
 ## PaddleOCR 回退
 
@@ -132,8 +149,12 @@ chmod +x .tools/wx_video_download/wx_video_download
 | `FRAMECOPY_DATA_DIR` | `./data` | 视频、结果、数据库和本机密钥的保存位置 |
 | `FRAMECOPY_QUEUE_BACKEND` | `local` | `local` 或 `dramatiq` |
 | `FRAMECOPY_MAX_UPLOAD_BYTES` | `209715200` | 上传大小上限 |
-| `FRAMECOPY_MAX_DURATION_SECONDS` | `600` | 视频时长上限 |
+| `FRAMECOPY_MAX_DURATION_SECONDS` | `1800` | 视频时长上限（30 分钟） |
 | `FRAMECOPY_OCR_PROVIDER` | `auto` | `auto`、`apple_vision` 或 `paddleocr` |
+| `FRAMECOPY_SPEECH_PROVIDER` | `mlx_whisper` | 本地语音 Provider |
+| `FRAMECOPY_SPEECH_MODEL` | `mlx-community/whisper-large-v3-turbo` | MLX Whisper 模型 |
+| `FRAMECOPY_SPEECH_PYTHON` | 自动检测 | 可选，指定独立语音 Python 路径 |
+| `FRAMECOPY_SPEECH_TIMEOUT_SECONDS` | `2700` | 单个语音识别任务超时秒数 |
 | `FRAMECOPY_WX_PROVIDER_COMMAND` | 见示例 | 视频号 Provider 命令 |
 
 ## 测试
@@ -143,7 +164,7 @@ chmod +x .tools/wx_video_download/wx_video_download
 uv run pytest
 ```
 
-测试覆盖 API、任务数据库、密钥存储、视频来源、OCR Provider、文字合并与 Markdown 生成。
+测试覆盖 API 模式路由、任务数据库迁移、源文件清理、密钥存储、视频来源、OCR Provider、画面合并与语音输出生成。
 
 ## Docker / Redis 模式
 
@@ -176,7 +197,8 @@ Docker 环境默认使用 PaddleOCR。容器内不会自动获得宿主机的视
 
 ## 当前边界
 
-- 当前版本只提取画面文字，不做语音转写或 AI 文案改写。
+- 当前一次任务只运行画面或语音其中一种，不自动合并，不做 AI 改写。
+- 语音引擎尚未在本仓库内的真实中文金标视频上完成 MLX Whisper / whisper.cpp A/B；当前实现只启用 MLX Whisper 本地 Provider。
 - 不下载私密、无权访问或需要绕过平台权限的内容。
 - 视频号解析受第三方下载器、Cookie 有效期和平台接口变化影响。
 - 默认为单机本地工具，尚未按公网多用户服务的标准加固。

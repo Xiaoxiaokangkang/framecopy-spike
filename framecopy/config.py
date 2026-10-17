@@ -32,7 +32,7 @@ class Settings:
     data_dir: Path
     database_path: Path
     max_upload_bytes: int = 200 * 1024 * 1024
-    max_duration_seconds: int = 10 * 60
+    max_duration_seconds: int = 30 * 60
     max_resolution_pixels: int = 3840 * 2160
     retention_hours: int = 7 * 24
     input_retention_hours: int = 24
@@ -44,6 +44,10 @@ class Settings:
     ocr_fallback_enabled: bool = True
     ocr_timeout_seconds: int = 45
     apple_vision_languages: tuple[str, ...] = ("zh-Hans", "zh-Hant", "en-US")
+    speech_provider: str = "mlx_whisper"
+    speech_model: str = "mlx-community/whisper-large-v3-turbo"
+    speech_python: str = ""
+    speech_timeout_seconds: int = 45 * 60
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -52,7 +56,7 @@ class Settings:
             data_dir=data_dir,
             database_path=data_dir / "framecopy.db",
             max_upload_bytes=int(os.getenv("FRAMECOPY_MAX_UPLOAD_BYTES", str(200 * 1024 * 1024))),
-            max_duration_seconds=int(os.getenv("FRAMECOPY_MAX_DURATION_SECONDS", "600")),
+            max_duration_seconds=int(os.getenv("FRAMECOPY_MAX_DURATION_SECONDS", "1800")),
             retention_hours=int(os.getenv("FRAMECOPY_RETENTION_HOURS", "168")),
             input_retention_hours=int(os.getenv("FRAMECOPY_INPUT_RETENTION_HOURS", "24")),
             queue_backend=os.getenv("FRAMECOPY_QUEUE_BACKEND", "local"),
@@ -67,6 +71,14 @@ class Settings:
                 item.strip() for item in os.getenv(
                     "FRAMECOPY_APPLE_VISION_LANGUAGES", "zh-Hans,zh-Hant,en-US"
                 ).split(",") if item.strip()
+            ),
+            speech_provider=os.getenv("FRAMECOPY_SPEECH_PROVIDER", "mlx_whisper").strip().lower(),
+            speech_model=os.getenv(
+                "FRAMECOPY_SPEECH_MODEL", "mlx-community/whisper-large-v3-turbo"
+            ).strip(),
+            speech_python=os.getenv("FRAMECOPY_SPEECH_PYTHON", "").strip(),
+            speech_timeout_seconds=max(
+                60, int(os.getenv("FRAMECOPY_SPEECH_TIMEOUT_SECONDS", str(45 * 60)))
             ),
         )
 

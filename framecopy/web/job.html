@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>任务 · 帧文案</title>
-  <link rel="stylesheet" href="/static/app.css?v=0.2.0">
+  <script>if (location.protocol === 'file:') location.replace('http://127.0.0.1:8000/');</script>
+  <link rel="stylesheet" href="/static/app.css?v=0.4.2">
 </head>
 <body>
   <main class="shell job-shell">
@@ -27,28 +28,25 @@
 
     <section id="result" hidden>
       <header class="result-header">
-        <div><p class="eyebrow">RESULT</p><h1>画面文案</h1><p id="result-meta" class="muted"></p></div>
+        <div><p class="eyebrow">RESULT</p><h1 id="result-title">文案结果</h1><p id="result-meta" class="muted"></p></div>
         <div class="actions">
+          <a id="reextract-link" class="ghost button-link" href="/">提取另一种内容</a>
           <button id="restore-button" class="ghost">恢复自动结果</button>
-          <button id="download-all" class="primary">下载核查资料</button>
+          <button id="download-all" class="primary">下载可读文案</button>
         </div>
       </header>
+      <p class="return-hint">↖ 需要提取下一个视频？点击左上角「帧文案」返回首页。</p>
       <div class="result-grid">
         <div id="segments" class="segments"></div>
-        <aside class="evidence card">
+        <aside class="evidence card" id="evidence-panel">
           <div class="evidence-placeholder" id="evidence-placeholder">选择一段文字<br>查看对应关键帧</div>
           <img id="evidence-image" alt="文字对应的关键帧" hidden>
           <div id="evidence-caption"></div>
         </aside>
       </div>
-      <div class="download-bar card">
-        <a data-download="视频文案-纯净版.md">纯净版 Markdown</a>
-        <a data-download="视频文案-带时间戳.md">带时间戳 Markdown</a>
-        <a data-download="原始OCR.jsonl">原始 OCR</a>
-      </div>
     </section>
   </main>
-  <script src="/static/job.js?v=0.2.0" defer></script>
+  <script src="/static/job.js?v=0.4.3" defer></script>
 </body>
 </html>
 

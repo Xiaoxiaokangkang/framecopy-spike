@@ -41,3 +41,31 @@ def delete_job_files(settings: Settings, job_id: str) -> None:
     paths = job_paths(settings, job_id, create=False)
     if paths.root.exists():
         shutil.rmtree(paths.root)
+
+
+def delete_source_files(settings: Settings, job_id: str, *, preserve_link: bool = False) -> None:
+    """Remove source media and working files without touching durable outputs/evidence."""
+    paths = job_paths(settings, job_id, create=False)
+    if paths.input.exists():
+        for path in list(paths.input.iterdir()):
+            if preserve_link and path.name == "source.enc" and path.is_file():
+                continue
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink(missing_ok=True)
+    if paths.work.exists():
+        shutil.rmtree(paths.work)
+    paths.work.mkdir(parents=True, exist_ok=True)
+
+
+def update_source_cleanup_manifest(output_dir: Path, status: str, deleted_at: str | None) -> None:
+    path = output_dir / "manifest.json"
+    if not path.is_file():
+        return
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+    payload["source_cleanup"] = {"status": status, "deleted_at": deleted_at}
+    atomic_json(path, payload)

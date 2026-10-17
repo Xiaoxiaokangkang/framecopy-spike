@@ -11,7 +11,7 @@ def test_timestamp_format() -> None:
     assert format_timestamp(3661) == "01:01:01"
 
 
-def test_clean_output_filters_review_only_segment_and_manifest_records_provider(tmp_path: Path) -> None:
+def test_readable_output_includes_every_segment_and_manifest_records_provider(tmp_path: Path) -> None:
     video = tmp_path / "video.mp4"
     video.write_bytes(b"test")
     frame = OCRFrame(
@@ -33,8 +33,8 @@ def test_clean_output_filters_review_only_segment_and_manifest_records_provider(
         [frame],
         [segment],
     )
-    assert "了" not in (tmp_path / "output" / "视频文案-纯净版.md").read_text(encoding="utf-8")
-    assert "了" in (tmp_path / "output" / "视频文案-带时间戳.md").read_text(encoding="utf-8")
+    assert "了" in (tmp_path / "output" / "可读文案.md").read_text(encoding="utf-8")
+    assert {path.name for path in (tmp_path / "output").iterdir()} == {"可读文案.md", "manifest.json"}
     manifest = json.loads((tmp_path / "output" / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["ocr"]["providers"][0]["name"] == "apple_vision"
     assert manifest["ocr"]["providers"][0]["revision"] == "3"
