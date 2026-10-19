@@ -174,7 +174,10 @@ def _public_model_name(value: str) -> str:
 
 def _speech_python(settings: Settings) -> str:
     if settings.speech_python:
-        return str(Path(settings.speech_python).expanduser().resolve())
+        # Keep the virtualenv launcher path intact. Resolving a uv-managed
+        # symlink points at the base interpreter and loses the venv's
+        # site-packages, including mlx_whisper.
+        return os.path.abspath(os.path.expanduser(settings.speech_python))
     project_runtime = Path(__file__).resolve().parents[2] / ".venv-speech" / "bin" / "python"
     return str(project_runtime) if project_runtime.is_file() else sys.executable
 

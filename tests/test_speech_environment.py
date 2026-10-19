@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from framecopy.config import Settings
-from framecopy.engine.speech import MlxWhisperProvider, _same_python_runtime
+from framecopy.engine.speech import MlxWhisperProvider, _same_python_runtime, _speech_python
 
 
 def make_settings(tmp_path: Path, *, speech_python: str) -> Settings:
@@ -40,3 +40,18 @@ def test_same_python_runtime_resolves_symlinks(tmp_path: Path) -> None:
     alias.symlink_to(target)
 
     assert _same_python_runtime(str(alias), str(target)) is True
+
+
+def test_explicit_speech_python_preserves_virtualenv_symlink(tmp_path: Path) -> None:
+    base_python = tmp_path / "managed-python"
+    base_python.write_text("runtime", encoding="utf-8")
+    venv_bin = tmp_path / ".venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    venv_python = venv_bin / "python"
+    venv_python.symlink_to(base_python)
+    settings = make_settings(tmp_path, speech_python=str(venv_python))
+
+    selected = _speech_python(settings)
+
+    assert selected == str(venv_python)
+    assert selected != str(base_python)
