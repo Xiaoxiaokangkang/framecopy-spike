@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import os
 import platform
 import shutil
@@ -60,6 +61,14 @@ class MlxWhisperProvider:
         python = _speech_python(self.settings)
         if not Path(python).is_file():
             return SpeechProviderStatus(False, "MLX Whisper 独立运行环境不存在", self.name, public_model)
+        if _same_python_runtime(python, sys.executable):
+            available = importlib.util.find_spec("mlx_whisper") is not None
+            return SpeechProviderStatus(
+                available,
+                "MLX Whisper 可用" if available else "MLX Whisper 尚未安装",
+                self.name,
+                public_model,
+            )
         try:
             check = subprocess.run(
                 [python, "-c", "import importlib.util,sys;sys.exit(0 if importlib.util.find_spec('mlx_whisper') else 1)"],
@@ -168,6 +177,13 @@ def _speech_python(settings: Settings) -> str:
         return str(Path(settings.speech_python).expanduser().resolve())
     project_runtime = Path(__file__).resolve().parents[2] / ".venv-speech" / "bin" / "python"
     return str(project_runtime) if project_runtime.is_file() else sys.executable
+
+
+def _same_python_runtime(left: str, right: str) -> bool:
+    try:
+        return os.path.samefile(left, right)
+    except OSError:
+        return Path(left).resolve() == Path(right).resolve()
 
 
 def _run_cancellable(

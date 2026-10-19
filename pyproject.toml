@@ -1,6 +1,6 @@
 [project]
 name = "framecopy"
-version = "0.4.1"
+version = "0.4.2"
 description = "本地优先的视频画面与语音文案提取工具"
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
