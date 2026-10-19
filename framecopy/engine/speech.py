@@ -212,13 +212,15 @@ def _run_cancellable(
     stdout, stderr = process.communicate()
     completed = subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
     if process.returncode != 0:
-        detail = (stderr or "本地子进程退出").strip().splitlines()[-1][-240:]
+        lines = (stderr or "").strip().splitlines()
+        last_line = lines[-1][-320:] if lines else "本地子进程没有返回错误详情"
+        detail = f"{last_line}；退出码 {process.returncode}"
         lowered = detail.lower()
         if failure_code == "AUDIO_EXTRACTION_FAILED" and (
             "matches no streams" in lowered or "stream map" in lowered
         ):
             raise error("AUDIO_TRACK_MISSING")
-        raise error(failure_code)
+        raise error(failure_code, detail=detail)
     return completed
 
 
