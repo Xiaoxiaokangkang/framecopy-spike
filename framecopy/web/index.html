@@ -63,12 +63,15 @@
               <div class="provider-setup-body">
                 <p>配置一次即可自动解析。Cookie 只会加密保存在这台电脑。</p>
                 <ol>
-                  <li><a href="https://yuanbao.tencent.com/" target="_blank" rel="noreferrer">登录腾讯元宝</a></li>
-                  <li>在开发者工具 Network 中复制请求的 Cookie</li>
-                  <li>粘贴到下方并保存</li>
+                  <li>用 Chrome/Edge <a href="https://yuanbao.tencent.com/" target="_blank" rel="noreferrer">登录腾讯元宝</a></li>
+                  <li>按 Option + Command + I，打开 Network</li>
+                  <li>刷新页面，点击一个 yuanbao.tencent.com 请求</li>
+                  <li>打开 Headers → Request Headers</li>
+                  <li>找到 Cookie，复制冒号后面的完整一行</li>
                 </ol>
+                <p><strong>完整 Cookie</strong> 通常包含多个“名称=值”，中间用英文分号分隔。不要复制 Response Headers 的 Set-Cookie，也不要只复制其中一个字段。</p>
                 <label for="yuanbao-cookie">元宝 Cookie</label>
-                <textarea id="yuanbao-cookie" rows="3" autocomplete="off" spellcheck="false" placeholder="仅保存在本机"></textarea>
+                <textarea id="yuanbao-cookie" rows="3" autocomplete="off" spellcheck="false" placeholder="例如：名称1=值1; 名称2=值2; …（仅保存在本机）"></textarea>
                 <div class="credential-actions">
                   <button type="button" class="ghost" id="save-credential">加密保存</button>
                   <button type="button" class="text-button" id="delete-credential">删除凭证</button>

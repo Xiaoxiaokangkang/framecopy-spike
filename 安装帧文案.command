@@ -43,6 +43,8 @@ fi
 
 if ! command -v brew >/dev/null 2>&1; then
   echo "尚未安装 Homebrew，它用于安装 FFmpeg 和 uv。"
+  echo "首次下载 Homebrew 通常需要等待 3–10 分钟，网络较慢时可能更久。"
+  echo "终端暂时没有变化通常不是卡死，请不要关闭窗口或重复运行安装器。"
   read "answer?是否现在运行 Homebrew 官方安装程序？[Y/n] "
   if [[ "${answer:-Y}" == [nN] ]]; then
     echo "已取消。安装 Homebrew 后请重新运行本安装器。"

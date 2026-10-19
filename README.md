@@ -2,7 +2,7 @@
 
 一个本地优先、移动端友好的视频文案提取工具。提交前选择“画面文字”或“语音文案”，只运行被选中的本地处理流程。
 
-> 当前版本：`0.4.4`。画面 OCR 延用现有流程；语音转写在 Apple Silicon Mac 上通过可选的 MLX Whisper 本地运行。
+> 当前版本：`0.4.5`。画面 OCR 延用现有流程；语音转写在 Apple Silicon Mac 上通过可选的 MLX Whisper 本地运行。
 
 ## 已实现功能
 
@@ -85,6 +85,8 @@ data/                  运行数据，已被 Git 忽略
 3. 等待 FFmpeg、Python、项目依赖和本地语音模型安装完成。首次安装需要下载较大的模型，并会进行一次实际加载校验。
 4. 双击 `启动帧文案.command`，程序会在后台启动并自动打开浏览器。
 
+> **等待提示：**Homebrew 第一次下载通常需要约 3–10 分钟，网络较慢时可能更久。终端可能暂时没有明显变化，这通常不是卡死；请保持网络连接，不要关闭窗口或重复运行安装器。
+
 安装器面向 M1/M2/M3/M4 等 Apple 芯片 Mac，统一使用 Python 3.12，不再要求分别维护主程序和语音识别两个 Python 环境。已有 `.env` 会被保留，不会覆盖。
 
 需要粘贴视频号链接时，还需从 [`ltaoo/wx_channels_download` Releases](https://github.com/ltaoo/wx_channels_download/releases) 下载 macOS Apple 芯片版本并解压，然后双击 `配置视频号解析器.command`，在弹窗中选择解压得到的 `wx_video_download` 文件。第三方解析器未配置时，本地视频上传仍可正常使用。
@@ -92,6 +94,8 @@ data/                  运行数据，已被 Git 忽略
 以后使用时只需双击 `启动帧文案.command`；需要停止后台服务时，双击 `停止帧文案.command`。运行日志保存在 `data/logs/framecopy.log`。
 
 如果 macOS 首次打开 `.command` 文件时阻止运行，可在 Finder 中按住 Control 点击该文件，选择“打开”，再确认一次。不要把其他电脑的 `.env`、`data/` 或 Cookie 文件复制过来。
+
+面向第一次使用的完整分步说明见 [`使用说明.md`](使用说明.md)，其中重点说明了如何在腾讯元宝网页的开发者工具中找到并复制完整 Cookie。
 
 ### 手动安装与启动
 
@@ -157,6 +161,8 @@ chmod +x .tools/wx_video_download/wx_video_download
 1. 优先在隔离进程中直接解析、下载和解密。
 2. 直接解析失败时，尝试回退到电脑版微信页面通道。
 3. Cookie 过期时在首页重新保存。
+
+寻找 Cookie 时，请在 Chrome/Edge 登录腾讯元宝，打开开发者工具的 **Network**，刷新页面后选择 `yuanbao.tencent.com` 请求，再到 **Headers → Request Headers → Cookie** 复制冒号后的完整一行。不要复制 Response Headers 的 `Set-Cookie`，也不要只复制其中一个字段。详细步骤和安全提醒见 [`使用说明.md`](使用说明.md)。
 
 `wx_channels_download` 是独立第三方项目，具有自己的授权和使用条件；本项目不再分发其二进制文件。
 
