@@ -11,15 +11,16 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from framecopy.config import Settings
-from framecopy.errors import error
+from framecopy.errors import FramecopyError, error
 from framecopy.models import SpeechSegment
 
 
 CancelCallback = Callable[[], bool]
-ProgressCallback = Callable[[str, int], None]
+ProgressCallback = Callable[[str, int, int | None, int | None], None]
+TickCallback = Callable[[], None]
 
 
 @dataclass(frozen=True)
@@ -95,7 +96,7 @@ class MlxWhisperProvider:
             raise error("SPEECH_ENVIRONMENT_UNAVAILABLE", detail=status.message)
         work_dir.mkdir(parents=True, exist_ok=True)
         audio_path = work_dir / "speech-input.wav"
-        progress("正在提取音轨", 28)
+        progress("正在提取音轨", 28, None, None)
         _run_cancellable(
             [
                 "ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(video_path),
@@ -108,20 +109,79 @@ class MlxWhisperProvider:
         )
         if not audio_path.is_file() or audio_path.stat().st_size <= 44:
             raise error("AUDIO_TRACK_MISSING")
-        progress("正在识别语音", 42)
+        progress_path = work_dir / "speech-progress.json"
+        checkpoint_path = work_dir / "speech-checkpoint.json"
+        result_path = work_dir / "speech-result.json"
+        progress_path.unlink(missing_ok=True)
+        result_path.unlink(missing_ok=True)
+        progress("正在准备长音频分块", 42, 0, None)
+        last_progress_event: tuple[str, int, int] | None = None
+
+        def report_worker_progress() -> None:
+            nonlocal last_progress_event
+            payload = _read_worker_progress(progress_path)
+            if payload is None:
+                return
+            state = str(payload.get("state") or "")
+            current = max(0, int(payload.get("current") or 0))
+            total = max(1, int(payload.get("total") or 1))
+            event = (state, current, total)
+            if event == last_progress_event:
+                return
+            last_progress_event = event
+            completed = current if state == "completed" else max(0, current - 1)
+            value = min(90, 42 + int(48 * completed / total))
+            if state == "completed" and current >= total:
+                label = f"语音识别完成（{total}/{total} 块）"
+            else:
+                active = min(total, max(1, current))
+                label = f"正在识别语音（第 {active}/{total} 块）"
+            progress(label, value, completed, total)
+
         started = time.monotonic()
-        process = _run_cancellable(
-            [
-                _speech_python(self.settings), "-m", "framecopy.engine.speech_worker",
-                "--input", str(audio_path), "--model", self.settings.speech_model,
-            ],
-            cancelled,
-            timeout=self.settings.speech_timeout_seconds,
-            failure_code="TRANSCRIPTION_FAILED",
-        )
+        deadline = started + self.settings.speech_timeout_seconds
+        worker_command = [
+            _speech_python(self.settings), "-m", "framecopy.engine.speech_worker",
+            "--input", str(audio_path), "--model", self.settings.speech_model,
+            "--progress-file", str(progress_path),
+            "--checkpoint-file", str(checkpoint_path),
+            "--result-file", str(result_path),
+            "--chunk-seconds", str(self.settings.speech_chunk_seconds),
+            "--overlap-seconds", str(self.settings.speech_chunk_overlap_seconds),
+        ]
+
+        def run_worker() -> None:
+            remaining = max(1, int(deadline - time.monotonic()))
+            _run_cancellable(
+                worker_command,
+                cancelled,
+                timeout=remaining,
+                failure_code="TRANSCRIPTION_FAILED",
+                on_tick=report_worker_progress,
+            )
+
         try:
-            payload = json.loads(process.stdout)
-        except (json.JSONDecodeError, TypeError) as exc:
+            run_worker()
+        except FramecopyError:
+            worker_state = _read_worker_progress(progress_path) or {}
+            current = max(0, int(worker_state.get("current") or 0))
+            completed = current if worker_state.get("state") == "completed" else max(0, current - 1)
+            # One bounded restart can reuse the atomically saved chunk
+            # checkpoint. Do not retry startup/model failures with no result.
+            if completed <= 0 or time.monotonic() >= deadline - 1:
+                raise
+            progress(
+                f"识别中断，正在从第 {completed + 1} 块继续",
+                min(90, 42 + int(48 * completed / max(1, int(worker_state.get("total") or 1)))),
+                completed,
+                max(1, int(worker_state.get("total") or 1)),
+            )
+            run_worker()
+        report_worker_progress()
+        progress("正在整理识别结果", 91, None, None)
+        try:
+            payload = json.loads(result_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, TypeError) as exc:
             raise SpeechProviderError("语音识别器返回了无效结果") from exc
         raw_segments = payload.get("segments") if isinstance(payload, dict) else None
         if not isinstance(raw_segments, list):
@@ -195,6 +255,7 @@ def _run_cancellable(
     *,
     timeout: int,
     failure_code: str,
+    on_tick: TickCallback | None = None,
 ) -> subprocess.CompletedProcess[str]:
     process = subprocess.Popen(
         command,
@@ -205,6 +266,8 @@ def _run_cancellable(
     )
     deadline = time.monotonic() + timeout
     while process.poll() is None:
+        if on_tick is not None:
+            on_tick()
         if cancelled():
             _terminate_process_group(process)
             raise InterruptedError("cancelled")
@@ -212,6 +275,8 @@ def _run_cancellable(
             _terminate_process_group(process)
             raise error("PROCESSING_TIMEOUT")
         time.sleep(0.2)
+    if on_tick is not None:
+        on_tick()
     stdout, stderr = process.communicate()
     completed = subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
     if process.returncode != 0:
@@ -225,6 +290,15 @@ def _run_cancellable(
             raise error("AUDIO_TRACK_MISSING")
         raise error(failure_code, detail=detail)
     return completed
+
+
+def _read_worker_progress(path: Path) -> dict[str, Any] | None:
+    """Read the worker's atomically replaced progress file without failing the job."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
 
 
 def _terminate_process_group(process: subprocess.Popen[str]) -> None:

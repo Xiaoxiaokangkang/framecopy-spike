@@ -2,7 +2,7 @@
 
 一个本地优先、移动端友好的视频文案提取工具。提交前选择“画面文字”或“语音文案”，只运行被选中的本地处理流程。
 
-> 当前版本：`0.4.5`。画面 OCR 延用现有流程；语音转写在 Apple Silicon Mac 上通过可选的 MLX Whisper 本地运行。
+> 当前版本：`0.5.0`。画面 OCR 延用现有流程；语音转写在 Apple Silicon Mac 上通过可选的 MLX Whisper 本地运行。
 
 ## 已实现功能
 
@@ -17,6 +17,8 @@
 - 可取消、可重试的本地单并发任务队列。
 - SQLite WAL、高熵任务访问令牌与自动过期清理。
 - 语音模式生成包含全部已保存文案的 Markdown 可读版。
+- 长音频默认按4分钟分块识别，相邻分块重叠2秒，页面显示实时分块进度。
+- 每个分块完成后原子保存临时检查点；子进程中断时可在本次任务时限内自动续跑一次。
 - 任务成功、失败或取消后删除应用私有目录中的原视频、临时音轨和工作文件。
 
 ## 处理流程
@@ -131,6 +133,8 @@ uv pip install --python .venv-speech/bin/python mlx-whisper==0.4.3
 
 默认模型为 `mlx-community/whisper-large-v3-turbo`。模型首次使用时可能需要下载；识别时音轨不上传到按次收费的语音 API。未安装时，首页会明确提示，并在获取或上传视频前拒绝语音任务；画面文字不受影响。
 
+长音频默认按4分钟分块，分块之间重叠2秒并自动合并时间戳。识别期间任务页会显示已完成分块数，不再长时间停留在42%。最终长转写结果通过临时文件传递，避免大结果堵塞子进程输出管道。
+
 ## PaddleOCR 回退
 
 需要在非 macOS 环境运行，或显式测试 PaddleOCR 时：
@@ -181,6 +185,8 @@ chmod +x .tools/wx_video_download/wx_video_download
 | `FRAMECOPY_SPEECH_MODEL` | `mlx-community/whisper-large-v3-turbo` | MLX Whisper 模型 |
 | `FRAMECOPY_SPEECH_PYTHON` | 自动检测 | 可选，指定独立语音 Python 路径 |
 | `FRAMECOPY_SPEECH_TIMEOUT_SECONDS` | `2700` | 单个语音识别任务超时秒数 |
+| `FRAMECOPY_SPEECH_CHUNK_SECONDS` | `240` | 长音频识别分块时长（秒） |
+| `FRAMECOPY_SPEECH_CHUNK_OVERLAP_SECONDS` | `2` | 相邻识别分块的重叠时长（秒） |
 | `FRAMECOPY_WX_PROVIDER_COMMAND` | 见示例 | 视频号 Provider 命令 |
 
 ## 测试

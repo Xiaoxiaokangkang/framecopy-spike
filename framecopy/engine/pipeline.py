@@ -199,9 +199,21 @@ class ProcessingPipeline:
         if not status.available:
             raise error("SPEECH_ENVIRONMENT_UNAVAILABLE", detail=status.message)
 
-        def progress(label: str, value: int) -> None:
+        def progress(
+            label: str,
+            value: int,
+            current: int | None = None,
+            total: int | None = None,
+        ) -> None:
             status_value = JobStatus.EXTRACTING_AUDIO if "音轨" in label else JobStatus.TRANSCRIBING
-            self._stage(job_id, status_value, label, value)
+            self.database.update_job(
+                job_id,
+                status_value,
+                label=label,
+                progress=value,
+                current=current,
+                total=total,
+            )
 
         result = provider.transcribe(video_path, paths.work / "speech", progress, cancelled)
         self._check_cancelled(job_id)

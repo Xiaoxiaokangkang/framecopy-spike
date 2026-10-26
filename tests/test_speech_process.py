@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import pytest
 
-from framecopy.engine.speech import _run_cancellable
+from framecopy.engine.speech import _read_worker_progress, _run_cancellable
 from framecopy.errors import FramecopyError
 
 
@@ -41,3 +42,16 @@ def test_failed_speech_process_reports_signal_exit_without_stderr() -> None:
 
     assert "没有返回错误详情" in captured.value.public_message
     assert "退出码" in captured.value.public_message
+
+
+def test_progress_reader_ignores_partial_json(tmp_path: Path) -> None:
+    path = tmp_path / "progress.json"
+    path.write_text('{"state":', encoding="utf-8")
+    assert _read_worker_progress(path) is None
+
+    path.write_text('{"state":"completed","current":2,"total":4}', encoding="utf-8")
+    assert _read_worker_progress(path) == {
+        "state": "completed",
+        "current": 2,
+        "total": 4,
+    }

@@ -37,7 +37,7 @@ function renderStatus(job) {
   document.querySelector('#stage-label').textContent = job.stage_label || '正在处理';
   document.querySelector('#progress-bar').style.width = `${job.progress}%`;
   document.querySelector('#progress-number').textContent = `${job.progress}%`;
-  const unit = currentMode === 'speech' ? '个语音片段' : '个候选画面';
+  const unit = currentMode === 'speech' ? '个识别分块' : '个候选画面';
   document.querySelector('#progress-text').textContent = job.progress_total ? `${job.progress_current || 0}/${job.progress_total} ${unit}` : '任务编号 ' + job.id.slice(0, 8);
 }
 

@@ -48,10 +48,22 @@ class Settings:
     speech_model: str = "mlx-community/whisper-large-v3-turbo"
     speech_python: str = ""
     speech_timeout_seconds: int = 45 * 60
+    speech_chunk_seconds: int = 4 * 60
+    speech_chunk_overlap_seconds: int = 2
 
     @classmethod
     def from_env(cls) -> "Settings":
         data_dir = _path(os.getenv("FRAMECOPY_DATA_DIR", "./data"))
+        speech_chunk_seconds = max(
+            30, int(os.getenv("FRAMECOPY_SPEECH_CHUNK_SECONDS", str(4 * 60)))
+        )
+        speech_chunk_overlap_seconds = max(
+            0,
+            min(
+                int(os.getenv("FRAMECOPY_SPEECH_CHUNK_OVERLAP_SECONDS", "2")),
+                speech_chunk_seconds - 1,
+            ),
+        )
         return cls(
             data_dir=data_dir,
             database_path=data_dir / "framecopy.db",
@@ -80,6 +92,8 @@ class Settings:
             speech_timeout_seconds=max(
                 60, int(os.getenv("FRAMECOPY_SPEECH_TIMEOUT_SECONDS", str(45 * 60)))
             ),
+            speech_chunk_seconds=speech_chunk_seconds,
+            speech_chunk_overlap_seconds=speech_chunk_overlap_seconds,
         )
 
     def ensure_directories(self) -> None:
