@@ -13,6 +13,12 @@ if [ -n "$missing" ]; then
   exit 1
 fi
 
+if command -v yt-dlp >/dev/null 2>&1; then
+  echo "B站公开视频解析器可用：$(yt-dlp --version)"
+else
+  echo "提示：未安装 yt-dlp，B站链接功能不可用"
+fi
+
 echo "系统依赖检查通过"
 python3 --version
 ffmpeg -version | sed -n '1p'

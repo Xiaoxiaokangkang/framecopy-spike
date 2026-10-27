@@ -5,7 +5,7 @@ import os
 import re
 import unicodedata
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -21,8 +21,8 @@ from framecopy.errors import FramecopyError
 from framecopy.models import ExtractionMode, JobStatus
 from framecopy.runner import QueueFacade
 from framecopy.secret_store import LocalSecretStore, WX_YUANBAO_COOKIE
-from framecopy.sources import WxChannelCloudProvider, extract_wx_channel_url
-from framecopy.source_payload import save_link_source
+from framecopy.sources import BilibiliProvider, WxChannelCloudProvider, extract_wx_channel_url
+from framecopy.source_payload import save_bilibili_source, save_link_source
 from framecopy.source_payload import load_job_source
 from framecopy.storage import delete_job_files, job_paths
 
@@ -34,6 +34,16 @@ class LinkRequest(BaseModel):
 
 class WxCredentialRequest(BaseModel):
     cookie: str = Field(min_length=20, max_length=65_536)
+
+
+class BilibiliInspectRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=4096)
+
+
+class BilibiliJobRequest(BaseModel):
+    url: str = Field(min_length=1, max_length=4096)
+    transcript_source: Literal["asr", "subtitle"] = "asr"
+    language: Literal["auto", "zh", "en", "ja"] = "auto"
 
 
 class SegmentUpdate(BaseModel):
@@ -95,6 +105,22 @@ def create_router(settings: Settings, database: Database, queue: QueueFacade) ->
             "provider": provider.info.to_dict(),
             "configured": settings.ocr_provider,
         }
+
+    @router.get("/providers/bilibili/status")
+    def bilibili_status() -> dict[str, Any]:
+        status = BilibiliProvider(settings).check_environment()
+        return {
+            "available": status.available,
+            "message": status.message,
+            "version": status.mode,
+        }
+
+    @router.post("/providers/bilibili/inspect")
+    def inspect_bilibili(payload: BilibiliInspectRequest) -> dict[str, Any]:
+        try:
+            return BilibiliProvider(settings).inspect(payload.text).to_dict()
+        except FramecopyError as exc:
+            raise HTTPException(422, detail={"code": exc.code, "message": exc.public_message})
 
     @router.get("/providers/speech/status")
     def speech_status() -> dict[str, Any]:
@@ -160,6 +186,56 @@ def create_router(settings: Settings, database: Database, queue: QueueFacade) ->
             raise
         finally:
             await file.close()
+        queue.enqueue(job_id)
+        return {"job_id": job_id, "access_token": token}
+
+    @router.post("/jobs/bilibili", status_code=202)
+    def create_bilibili_job(payload: BilibiliJobRequest) -> dict[str, str]:
+        provider = BilibiliProvider(settings)
+        status = provider.check_environment()
+        if not status.available:
+            raise HTTPException(503, detail={
+                "code": "BILIBILI_ENVIRONMENT_UNAVAILABLE",
+                "message": status.message,
+            })
+        if payload.transcript_source == "asr":
+            _require_extraction_environment(ExtractionMode.SPEECH, settings)
+        try:
+            inspection = provider.inspect(payload.url)
+        except FramecopyError as exc:
+            raise HTTPException(422, detail={"code": exc.code, "message": exc.public_message})
+        if inspection.requires_part_selection:
+            raise HTTPException(422, detail={
+                "code": "BILIBILI_PART_REQUIRED",
+                "message": "这是一个多P视频，请先选择要处理的分P。",
+            })
+        if inspection.duration and inspection.duration > settings.max_duration_seconds:
+            raise HTTPException(422, detail={
+                "code": "DURATION_EXCEEDED",
+                "message": f"当前视频超过 {settings.max_duration_seconds // 60} 分钟保护限制。",
+            })
+        if payload.transcript_source == "subtitle" and not inspection.has_subtitles:
+            raise HTTPException(422, detail={
+                "code": "BILIBILI_SUBTITLE_UNAVAILABLE",
+                "message": "这个分P没有可用的发布字幕，请改用本地语音识别。",
+            })
+        if (
+            payload.transcript_source == "subtitle"
+            and not inspection.select_subtitle_language(payload.language)
+        ):
+            raise HTTPException(422, detail={
+                "code": "BILIBILI_SUBTITLE_UNAVAILABLE",
+                "message": "没有找到所选语言的发布字幕，请选择自动或改用本地语音识别。",
+            })
+        job_id, token = database.create_job(
+            "bilibili_link", inspection.title, ExtractionMode.SPEECH
+        )
+        paths = job_paths(settings, job_id)
+        save_bilibili_source(settings, paths.root, {
+            "url": inspection.url,
+            "transcript_source": payload.transcript_source,
+            "language": payload.language,
+        })
         queue.enqueue(job_id)
         return {"job_id": job_id, "access_token": token}
 
@@ -243,7 +319,7 @@ def create_router(settings: Settings, database: Database, queue: QueueFacade) ->
         row = authorize(job_id, x_access_token)
         if row["status"] != JobStatus.FAILED or int(row["attempt_count"] or 0) >= 1:
             raise HTTPException(409, "当前任务不能重试或已达到重试上限")
-        if row["source_type"] != "wx_channel_link":
+        if row["source_type"] not in {"wx_channel_link", "bilibili_link"}:
             raise HTTPException(409, "本地上传视频已按隐私规则删除，请重新选择文件提交")
         paths = job_paths(settings, job_id, create=False)
         try:
@@ -352,7 +428,7 @@ def _has_usable_source_title(source_type: object, source_name: str) -> bool:
         return False
     if source_name.startswith(("http://", "https://", "weixin.qq.com/")) or "…" in source_name:
         return False
-    return str(source_type or "") == "upload" or Path(source_name).suffix.lower() in {
+    return str(source_type or "") in {"upload", "bilibili_link"} or Path(source_name).suffix.lower() in {
         ".mp4", ".mov", ".mkv", ".webm", ".m4v", ".ts",
     }
 

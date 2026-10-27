@@ -2,11 +2,13 @@
 
 一个本地优先、移动端友好的视频文案提取工具。提交前选择“画面文字”或“语音文案”，只运行被选中的本地处理流程。
 
-> 当前版本：`0.5.0`。画面 OCR 延用现有流程；语音转写在 Apple Silicon Mac 上通过可选的 MLX Whisper 本地运行。
+> 当前版本：`0.6.0`。新增B站公开视频的音轨与发布字幕提取；语音转写在 Apple Silicon Mac 上通过 MLX Whisper 本地运行。
 
 ## 已实现功能
 
-- 粘贴视频号链接或上传本地视频。
+- 粘贴视频号链接、B站公开视频链接，或上传本地视频。
+- B站支持 `bilibili.com/video` 与 `b23.tv` 链接；多P视频必须由用户明确选择分P。
+- B站任务可选择下载音轨后本地听写，或直接使用视频已发布的字幕，并可指定自动、中文、英文或日文。
 - 在获取或上传前明确选择画面文字或语音文案，不自动猜测。
 - 视频号优先通过本机加密保存的元宝 Cookie 自动解析，失败时回退到电脑版微信页面通道。
 - 最大 200 MB、最长 30 分钟、最高 4K 的输入校验。
@@ -24,9 +26,9 @@
 ## 处理流程
 
 ```text
-视频号链接 / 本地视频 + 明确的提取模式
+B站链接 / 视频号链接 / 本地视频 + 明确的提取模式
             ↓
-      临时获取并校验视频
+      临时获取并校验媒体
             ↓
    画面 OCR 或 MLX Whisper 语音识别
             ↓
@@ -49,6 +51,7 @@
 - 默认队列：本地单工作线程
 - 可选队列：Dramatiq + Redis
 - 视频处理：FFmpeg/ffprobe + OpenCV
+- B站公开内容解析：yt-dlp（只下载任务所需音轨或字幕）
 - macOS OCR：Apple Vision Accurate
 - 跨平台 OCR：PaddleOCR
 - macOS 语音识别：MLX Whisper（可选依赖）
@@ -59,7 +62,7 @@
 ```text
 framecopy/             Web、API、数据库、队列和处理引擎
 framecopy/engine/ocr/  OCR Provider 及 Apple Vision Helper
-framecopy/sources/     本地上传与视频号来源 Provider
+framecopy/sources/     本地上传、视频号与B站来源 Provider
 framecopy/web/         移动端优先页面
 scripts/               系统检查与视频号下载适配器
 config/                视频号下载器示例配置
@@ -72,6 +75,7 @@ data/                  运行数据，已被 Git 忽略
 - Python 3.10–3.12
 - FFmpeg/ffprobe
 - `uv`
+- `yt-dlp`（B站链接功能）
 - macOS：建议安装 Xcode Command Line Tools，供 Swift/Apple Vision Helper 编译
 - Linux/Windows：需安装 PaddleOCR 与 PaddlePaddle
 - 视频号链接：需另外安装 `wx_channels_download`
@@ -91,7 +95,9 @@ data/                  运行数据，已被 Git 忽略
 
 安装器面向 M1/M2/M3/M4 等 Apple 芯片 Mac，统一使用 Python 3.12，不再要求分别维护主程序和语音识别两个 Python 环境。已有 `.env` 会被保留，不会覆盖。
 
-需要粘贴视频号链接时，还需从 [`ltaoo/wx_channels_download` Releases](https://github.com/ltaoo/wx_channels_download/releases) 下载 macOS Apple 芯片版本并解压，然后双击 `配置视频号解析器.command`，在弹窗中选择解压得到的 `wx_video_download` 文件。第三方解析器未配置时，本地视频上传仍可正常使用。
+安装器会自动安装 B站公开内容解析所需的 `yt-dlp`。需要粘贴视频号链接时，还需从 [`ltaoo/wx_channels_download` Releases](https://github.com/ltaoo/wx_channels_download/releases) 下载 macOS Apple 芯片版本并解压，然后双击 `配置视频号解析器.command`，在弹窗中选择解压得到的 `wx_video_download` 文件。第三方视频号解析器未配置时，本地上传与B站链接仍可正常使用。
+
+> **从旧 ZIP 更新到 0.6.0：**停止旧服务，下载新 ZIP 后把新文件覆盖到原项目目录，并重新运行一次 `安装帧文案.command`。这一步会补装 `yt-dlp` 并同步新代码依赖；不会覆盖已有 `.env` 与 `data/`。
 
 以后使用时只需双击 `启动帧文案.command`；需要停止后台服务时，双击 `停止帧文案.command`。运行日志保存在 `data/logs/framecopy.log`。
 
@@ -102,7 +108,7 @@ data/                  运行数据，已被 Git 忽略
 ### 手动安装与启动
 
 ```bash
-brew install ffmpeg uv
+brew install ffmpeg uv yt-dlp
 uv python install 3.12
 uv sync --python 3.12 --extra dev --extra speech
 cp .env.example .env
@@ -170,6 +176,18 @@ chmod +x .tools/wx_video_download/wx_video_download
 
 `wx_channels_download` 是独立第三方项目，具有自己的授权和使用条件；本项目不再分发其二进制文件。
 
+## B站链接
+
+首页切换到“B站链接”，粘贴公开的 `bilibili.com/video/...` 或 `b23.tv/...` 链接，然后先点击“读取视频信息”。
+
+- 多P视频必须先选择一个分P，程序不会默认为 P1。
+- “本地听写完整语音”只下载该分P的音轨，然后交给本机 MLX Whisper。
+- “使用视频已发布字幕”只有在解析器检测到字幕时才可选，不会把弹幕当成字幕。
+- 当前只处理公开、无需登录的视频；不导出浏览器 Cookie，也不绕过会员、付费、私密或地区限制。
+- 当前不支持直播、播放列表批量处理或跨任务断点续传；单个任务仍受默认 30 分钟保护限制。
+
+若页面提示解析器未安装，请重新运行一次 `安装帧文案.command`。平台页面变化可能导致解析失败，此时先运行 `brew upgrade yt-dlp` 更新解析器，再重试。
+
 ## 配置
 
 环境变量使用 `FRAMECOPY_` 前缀，完整示例见 [`.env.example`](.env.example)。本地启动时自动读取项目根目录的 `.env`，已有系统环境变量优先级更高。
@@ -187,6 +205,7 @@ chmod +x .tools/wx_video_download/wx_video_download
 | `FRAMECOPY_SPEECH_TIMEOUT_SECONDS` | `2700` | 单个语音识别任务超时秒数 |
 | `FRAMECOPY_SPEECH_CHUNK_SECONDS` | `240` | 长音频识别分块时长（秒） |
 | `FRAMECOPY_SPEECH_CHUNK_OVERLAP_SECONDS` | `2` | 相邻识别分块的重叠时长（秒） |
+| `FRAMECOPY_BILIBILI_DOWNLOADER` | `yt-dlp` | B站解析器命令或可执行文件路径 |
 | `FRAMECOPY_WX_PROVIDER_COMMAND` | 见示例 | 视频号 Provider 命令 |
 
 ## 测试
@@ -196,7 +215,7 @@ chmod +x .tools/wx_video_download/wx_video_download
 uv run pytest
 ```
 
-测试覆盖 API 模式路由、任务数据库迁移、源文件清理、密钥存储、视频来源、OCR Provider、画面合并与语音输出生成。
+测试覆盖 API 模式路由、任务数据库迁移、源文件清理、密钥存储、B站多P/音轨/字幕来源、OCR Provider、画面合并与语音输出生成。
 
 ## Docker / Redis 模式
 
@@ -220,6 +239,8 @@ Docker 环境默认使用 PaddleOCR。容器内不会自动获得宿主机的视
 ## API 概览
 
 - `POST /api/jobs/link`：创建视频号链接任务。
+- `POST /api/providers/bilibili/inspect`：读取B站标题、时长、分P和字幕信息。
+- `POST /api/jobs/bilibili`：创建B站语音或发布字幕任务。
 - `POST /api/jobs/upload`：创建本地上传任务。
 - `GET /api/jobs/{job_id}`：读取任务状态。
 - `GET/PATCH /api/jobs/{job_id}/result`：读取或保存结果。
@@ -232,6 +253,8 @@ Docker 环境默认使用 PaddleOCR。容器内不会自动获得宿主机的视
 - 当前一次任务只运行画面或语音其中一种，不自动合并，不做 AI 改写。
 - 语音引擎尚未在本仓库内的真实中文金标视频上完成 MLX Whisper / whisper.cpp A/B；当前实现只启用 MLX Whisper 本地 Provider。
 - 不下载私密、无权访问或需要绕过平台权限的内容。
+- B站功能依赖 yt-dlp 对平台当前页面的兼容性；公开链接仍可能因地区、风控或平台改版失效。
+- B站当前只支持语音文案或已发布字幕，不做B站视频画面 OCR。
 - 视频号解析受第三方下载器、Cookie 有效期和平台接口变化影响。
 - 默认为单机本地工具，尚未按公网多用户服务的标准加固。
 

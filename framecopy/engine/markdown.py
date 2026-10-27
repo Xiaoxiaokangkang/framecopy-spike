@@ -37,7 +37,7 @@ def generate_outputs(
     manifest = {
         "input_sha256": _sha256(input_path),
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "pipeline_version": "0.4.0",
+        "pipeline_version": "0.6.0",
         "extraction_mode": "visual",
         "ocr": ocr_summary or _ocr_summary(frames),
         "video": {

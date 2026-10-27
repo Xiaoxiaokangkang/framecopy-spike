@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f4f6f8">
   <title>帧文案 · 视频文案提取</title>
   <script>if (location.protocol === 'file:') location.replace('http://127.0.0.1:8000/');</script>
-  <link rel="stylesheet" href="/static/app.css?v=0.4.2">
+  <link rel="stylesheet" href="/static/app.css?v=0.6.0">
 </head>
 <body>
   <main class="shell home-shell">
@@ -46,6 +46,7 @@
         <div class="step-heading"><span>2</span><div><strong>添加视频</strong><small>链接或本地文件</small></div></div>
         <div class="tabs" role="tablist">
           <button class="tab active" data-tab="link" role="tab">视频号链接</button>
+          <button class="tab" data-tab="bilibili" role="tab">B站链接</button>
           <button class="tab" data-tab="upload" role="tab">本地视频</button>
         </div>
 
@@ -83,6 +84,46 @@
           <button class="primary" type="submit"><span>开始提取</span><span>→</span></button>
         </form>
 
+        <form id="bilibili-form" class="panel">
+          <label class="sr-only" for="bilibili-text">B站视频链接</label>
+          <div class="input-wrap">
+            <textarea id="bilibili-text" placeholder="粘贴 bilibili.com 或 b23.tv 视频链接" rows="3" required></textarea>
+            <button type="button" class="paste-button" id="bilibili-paste-button">粘贴</button>
+          </div>
+          <p class="field-hint">先读取标题、时长和分P。仅支持你有权访问和处理的公开视频。</p>
+          <div class="provider-line">
+            <span class="provider-status" id="bilibili-provider-status">正在检查B站解析器…</span>
+          </div>
+          <button class="ghost inspect-button" type="button" id="inspect-bilibili">读取视频信息</button>
+
+          <div class="bilibili-options" id="bilibili-options" hidden>
+            <div class="media-preview">
+              <strong id="bilibili-title"></strong>
+              <small id="bilibili-meta"></small>
+            </div>
+            <label class="select-field" id="bilibili-part-field" hidden>
+              <span>选择分P</span>
+              <select id="bilibili-part"></select>
+            </label>
+            <fieldset class="inline-options">
+              <legend>文案来源</legend>
+              <label><input type="radio" name="bilibili-transcript-source" value="asr" checked> 本地听写完整语音</label>
+              <label id="bilibili-subtitle-option"><input type="radio" name="bilibili-transcript-source" value="subtitle"> 使用视频已发布字幕</label>
+            </fieldset>
+            <label class="select-field">
+              <span>语言偏好</span>
+              <select id="bilibili-language">
+                <option value="auto">自动检测</option>
+                <option value="zh">中文</option>
+                <option value="en">英文</option>
+                <option value="ja">日文</option>
+              </select>
+            </label>
+            <p class="field-hint" id="bilibili-subtitle-hint"></p>
+          </div>
+          <button class="primary" type="submit" id="bilibili-submit" disabled><span>开始提取B站语音文案</span><span>→</span></button>
+        </form>
+
         <form id="upload-form" class="panel">
           <label class="dropzone" for="video-file">
             <input id="video-file" name="file" type="file" accept="video/*,.mkv" required>
@@ -98,6 +139,6 @@
       </section>
     </section>
   </main>
-  <script src="/static/home.js?v=0.4.1" defer></script>
+  <script src="/static/home.js?v=0.6.0" defer></script>
 </body>
 </html>

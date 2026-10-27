@@ -28,12 +28,22 @@ def _fraction(value: str) -> float:
 
 
 def probe_video(path: Path, settings: Settings) -> VideoInfo:
+    return probe_media(path, settings, require_video=True, require_audio=False)
+
+
+def probe_media(
+    path: Path,
+    settings: Settings,
+    *,
+    require_video: bool,
+    require_audio: bool,
+) -> VideoInfo:
     if not shutil.which("ffprobe"):
         raise error("UNSUPPORTED_MEDIA", detail="本机尚未安装 FFmpeg")
     process = subprocess.run(
         [
-            "ffprobe", "-v", "error", "-select_streams", "v:0",
-            "-show_entries", "stream=codec_name,width,height,avg_frame_rate:format=duration,size",
+            "ffprobe", "-v", "error",
+            "-show_entries", "stream=codec_type,codec_name,width,height,avg_frame_rate:format=duration,size",
             "-of", "json", str(path),
         ],
         capture_output=True,
@@ -45,13 +55,24 @@ def probe_video(path: Path, settings: Settings) -> VideoInfo:
         raise error("MEDIA_CORRUPTED")
     try:
         payload = json.loads(process.stdout)
-        stream = payload["streams"][0]
+        streams = payload["streams"]
+        video_stream = next(
+            (item for item in streams if item.get("codec_type") == "video"), None
+        )
+        audio_stream = next(
+            (item for item in streams if item.get("codec_type") == "audio"), None
+        )
+        if require_video and video_stream is None:
+            raise KeyError("video stream missing")
+        if require_audio and audio_stream is None:
+            raise KeyError("audio stream missing")
+        stream = video_stream or audio_stream or streams[0]
         fmt = payload["format"]
         info = VideoInfo(
             duration=float(fmt["duration"]),
-            width=int(stream["width"]),
-            height=int(stream["height"]),
-            fps=_fraction(stream.get("avg_frame_rate", "0")),
+            width=int((video_stream or {}).get("width") or 0),
+            height=int((video_stream or {}).get("height") or 0),
+            fps=_fraction((video_stream or {}).get("avg_frame_rate", "0")),
             codec=str(stream.get("codec_name", "unknown")),
             size=int(fmt.get("size", path.stat().st_size)),
         )
@@ -61,7 +82,7 @@ def probe_video(path: Path, settings: Settings) -> VideoInfo:
         raise error("FILE_TOO_LARGE")
     if info.duration > settings.max_duration_seconds:
         raise error("DURATION_EXCEEDED")
-    if info.width * info.height > settings.max_resolution_pixels:
+    if info.width and info.height and info.width * info.height > settings.max_resolution_pixels:
         raise error("UNSUPPORTED_MEDIA", detail="视频分辨率超过 4K")
     return info
 

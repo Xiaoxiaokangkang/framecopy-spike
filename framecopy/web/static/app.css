@@ -60,7 +60,7 @@ button { color: inherit; }
 .mode-status { min-height: 18px; margin: 9px 0 0 36px; color: var(--muted); font-size: 11px; }
 .mode-status.bad { color: var(--danger); }
 .workspace-divider { height: 1px; margin: 18px 0; background: var(--line); }
-.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--soft); border-radius: 12px; }
+.tabs { display: grid; grid-template-columns: repeat(3,1fr); gap: 4px; padding: 4px; background: var(--soft); border-radius: 12px; }
 .tab { border: 0; border-radius: 9px; padding: 10px 12px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; }
 .tab.active { background: #fff; color: var(--ink); box-shadow: 0 2px 8px rgba(20,30,45,.08); }
 .panel { display: none; padding-top: 13px; }
@@ -101,6 +101,17 @@ textarea:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(47,91,23
 .dropzone small { color: var(--muted); font-size: 10px; }
 .drop-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--soft); color: var(--brand); font-size: 22px; }
 .file-name { max-width: 140px; overflow: hidden; color: var(--brand); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.inspect-button { width: 100%; margin-top: 9px; }
+.bilibili-options { display: grid; gap: 12px; margin-top: 12px; padding: 13px; border: 1px solid var(--line); border-radius: 13px; background: #fafbfc; }
+.media-preview { display: flex; flex-direction: column; gap: 5px; }
+.media-preview strong { font-size: 13px; line-height: 1.45; }
+.media-preview small { color: var(--muted); font-size: 10px; }
+.select-field { display: grid; grid-template-columns: 88px 1fr; align-items: center; gap: 10px; font-size: 11px; font-weight: 700; }
+.select-field select { min-width: 0; border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; background: #fff; color: var(--ink); }
+.inline-options { display: grid; gap: 8px; margin: 0; padding: 11px; border: 1px solid var(--line); border-radius: 10px; }
+.inline-options legend { padding: 0 5px; color: var(--muted); font-size: 10px; }
+.inline-options label { font-size: 11px; line-height: 1.45; }
+.inline-options label.disabled { color: var(--muted); opacity: .62; }
 .message { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #fff0ec; color: #93392e; font-size: 11px; }
 .privacy-note { margin: 14px 0 0; color: #8a919b; text-align: center; font-size: 10px; }
 

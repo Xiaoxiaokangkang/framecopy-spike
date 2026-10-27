@@ -69,7 +69,7 @@ class CleanupService:
                     pass
                 removed_inputs += 1
                 if row["id"] in abandoned_ids:
-                    message = "上次处理意外中断，临时视频已清理，请重新提交。"
+                    message = "上次处理意外中断，临时媒体已清理，请重新提交。"
                     self.database.update_job(
                         row["id"],
                         JobStatus.FAILED,

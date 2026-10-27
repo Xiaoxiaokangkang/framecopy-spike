@@ -19,6 +19,7 @@ def main() -> int:
     parser.add_argument("--result-file", required=True)
     parser.add_argument("--chunk-seconds", type=int, default=240)
     parser.add_argument("--overlap-seconds", type=int, default=2)
+    parser.add_argument("--language", default="")
     args = parser.parse_args()
 
     import mlx_whisper
@@ -30,6 +31,7 @@ def main() -> int:
     result_path = Path(args.result_file)
     chunk_seconds = max(30, args.chunk_seconds)
     overlap_seconds = max(0, min(args.overlap_seconds, chunk_seconds - 1))
+    forced_language = args.language.strip()
 
     with wave.open(str(input_path), "rb") as audio:
         sample_rate = audio.getframerate()
@@ -50,11 +52,14 @@ def main() -> int:
         "overlap_seconds": overlap_seconds,
         "total_frames": total_frames,
         "sample_rate": sample_rate,
+        "language": forced_language,
     }
     checkpoint = _load_checkpoint(checkpoint_path, signature)
     completed = min(int(checkpoint.get("completed") or 0), len(ranges))
     segments = list(checkpoint.get("segments") or [])
-    language = str(checkpoint.get("language") or "")
+    detected_languages = [
+        str(item) for item in checkpoint.get("detected_languages", []) if str(item)
+    ]
 
     for index, (start_frame, end_frame) in enumerate(ranges[completed:], completed + 1):
         _write_json_atomic(progress_path, {
@@ -70,10 +75,12 @@ def main() -> int:
             # less prone to repetition loops and timestamp drift on long audio.
             "condition_on_previous_text": False,
         }
-        if language:
-            options["language"] = language
+        if forced_language:
+            options["language"] = forced_language
         result = mlx_whisper.transcribe(samples, **options)
-        language = language or str(result.get("language") or "")
+        detected = str(result.get("language") or forced_language or "")
+        if detected and detected not in detected_languages:
+            detected_languages.append(detected)
         chunk_start = start_frame / sample_rate
         commit_after = None if index == 1 else chunk_start + overlap_seconds
         chunk_segments = _offset_segments(
@@ -87,7 +94,7 @@ def main() -> int:
             "signature": signature,
             "completed": completed,
             "segments": segments,
-            "language": language,
+            "detected_languages": detected_languages,
         })
         _write_json_atomic(progress_path, {
             "state": "completed",
@@ -98,7 +105,9 @@ def main() -> int:
     _write_json_atomic(result_path, {
         "provider": "mlx_whisper",
         "provider_version": importlib.metadata.version("mlx-whisper"),
-        "language": language,
+        "language": forced_language or (
+            detected_languages[0] if len(detected_languages) == 1 else "mixed"
+        ),
         "segments": segments,
         "chunks_total": len(ranges),
     })

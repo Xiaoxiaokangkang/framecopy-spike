@@ -39,6 +39,7 @@ class Settings:
     queue_backend: str = "local"
     redis_url: str = "redis://127.0.0.1:6379/0"
     wx_provider_command: str = ""
+    bilibili_downloader: str = "yt-dlp"
     secret_key: str = "change-me-for-public-deployment"
     ocr_provider: str = "auto"
     ocr_fallback_enabled: bool = True
@@ -74,6 +75,7 @@ class Settings:
             queue_backend=os.getenv("FRAMECOPY_QUEUE_BACKEND", "local"),
             redis_url=os.getenv("FRAMECOPY_REDIS_URL", "redis://127.0.0.1:6379/0"),
             wx_provider_command=os.getenv("FRAMECOPY_WX_PROVIDER_COMMAND", "").strip(),
+            bilibili_downloader=os.getenv("FRAMECOPY_BILIBILI_DOWNLOADER", "yt-dlp").strip(),
             secret_key=os.getenv("FRAMECOPY_SECRET_KEY", "change-me-for-public-deployment"),
             ocr_provider=os.getenv("FRAMECOPY_OCR_PROVIDER", "auto").strip().lower(),
             ocr_fallback_enabled=os.getenv("FRAMECOPY_OCR_FALLBACK_ENABLED", "true").strip().lower()

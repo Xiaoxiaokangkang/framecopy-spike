@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 import os
 from pathlib import Path
 
@@ -21,7 +22,14 @@ def save_link_source(settings: Settings, job_dir: Path, url: str) -> None:
     os.chmod(target, 0o600)
 
 
-def load_job_source(settings: Settings, job_dir: Path, source_type: str) -> Path | str:
+def save_bilibili_source(settings: Settings, job_dir: Path, payload: dict[str, str]) -> None:
+    target = job_dir / "input" / "source.enc"
+    raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    target.write_bytes(_fernet(settings).encrypt(raw))
+    os.chmod(target, 0o600)
+
+
+def load_job_source(settings: Settings, job_dir: Path, source_type: str) -> Path | str | dict[str, str]:
     if source_type == "upload":
         path = (job_dir / "input" / "source.bin").resolve()
         if not path.is_file():
@@ -29,8 +37,14 @@ def load_job_source(settings: Settings, job_dir: Path, source_type: str) -> Path
         return path
     target = job_dir / "input" / "source.enc"
     try:
-        return _fernet(settings).decrypt(target.read_bytes()).decode("utf-8")
-    except (FileNotFoundError, InvalidToken, UnicodeDecodeError) as exc:
+        raw = _fernet(settings).decrypt(target.read_bytes()).decode("utf-8")
+        if source_type == "bilibili_link":
+            payload = json.loads(raw)
+            if not isinstance(payload, dict) or not isinstance(payload.get("url"), str):
+                raise ValueError("invalid bilibili source payload")
+            return {str(key): str(value) for key, value in payload.items()}
+        return raw
+    except (FileNotFoundError, InvalidToken, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError("encrypted link source is unavailable") from exc
 
 

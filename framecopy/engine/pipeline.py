@@ -8,13 +8,13 @@ from framecopy.database import Database
 from framecopy.engine.markdown import generate_outputs
 from framecopy.engine.merge import merge_frames
 from framecopy.engine.ocr import OCRProviderError, create_ocr_provider
-from framecopy.engine.probe import VideoInfo, probe_video
+from framecopy.engine.probe import VideoInfo, probe_media
 from framecopy.engine.sampler import extract_candidates
-from framecopy.engine.speech import SpeechProviderError, create_speech_provider
+from framecopy.engine.speech import SpeechProviderError, SpeechResult, create_speech_provider
 from framecopy.engine.speech_output import generate_speech_outputs
 from framecopy.errors import FramecopyError, error
 from framecopy.models import ExtractionMode, JobStatus, OCRFrame
-from framecopy.sources import UploadedFileProvider, WxChannelCloudProvider
+from framecopy.sources import BilibiliProvider, UploadedFileProvider, WxChannelCloudProvider
 from framecopy.source_payload import load_job_source
 from framecopy.storage import delete_source_files, job_paths, update_source_cleanup_manifest
 
@@ -34,27 +34,52 @@ class ProcessingPipeline:
         try:
             source = load_job_source(self.settings, paths.root, row["source_type"])
             self.database.update_asset(job_id, status="acquiring", cleanup_status="pending")
+            is_link = row["source_type"] in {"wx_channel_link", "bilibili_link"}
             self._stage(
                 job_id,
-                JobStatus.RESOLVING_LINK if row["source_type"] == "wx_channel_link" else JobStatus.VALIDATING,
-                "正在解析视频来源" if row["source_type"] == "wx_channel_link" else "正在校验视频",
+                JobStatus.RESOLVING_LINK if is_link else JobStatus.VALIDATING,
+                "正在解析媒体来源" if is_link else "正在校验视频",
                 3,
             )
-            provider = (
-                WxChannelCloudProvider(self.settings.wx_provider_command)
-                if row["source_type"] == "wx_channel_link"
-                else UploadedFileProvider()
-            )
-            video_path = provider.acquire(
+            if row["source_type"] == "wx_channel_link":
+                provider = WxChannelCloudProvider(self.settings.wx_provider_command)
+            elif row["source_type"] == "bilibili_link":
+                provider = BilibiliProvider(self.settings)
+            else:
+                provider = UploadedFileProvider()
+            acquired = provider.acquire(
                 source,
                 paths.root,
                 lambda label, value: self._stage(job_id, JobStatus.DOWNLOADING, label, value),
                 cancelled,
             )
-            self.database.update_asset(job_id, status="validating", local_path=str(video_path))
+            media_path = acquired.path
+            if acquired.title:
+                self.database.update_source_name(job_id, acquired.title)
+            self.database.update_asset(job_id, status="validating", local_path=str(media_path))
             self._check_cancelled(job_id)
-            self._stage(job_id, JobStatus.VALIDATING, "正在校验视频", 12)
-            info = probe_video(video_path, self.settings)
+            self._stage(job_id, JobStatus.VALIDATING, "正在校验媒体", 12)
+            if acquired.transcript_segments:
+                duration = acquired.duration or max(
+                    (item.end_time for item in acquired.transcript_segments), default=0.0
+                )
+                if duration > self.settings.max_duration_seconds:
+                    raise error("DURATION_EXCEEDED")
+                info = VideoInfo(
+                    duration=duration,
+                    width=0,
+                    height=0,
+                    fps=0.0,
+                    codec=acquired.codec or "subtitle",
+                    size=media_path.stat().st_size,
+                )
+            else:
+                info = probe_media(
+                    media_path,
+                    self.settings,
+                    require_video=mode is ExtractionMode.VISUAL,
+                    require_audio=mode is ExtractionMode.SPEECH,
+                )
             now = datetime.now(timezone.utc).isoformat()
             self.database.update_asset(
                 job_id,
@@ -82,16 +107,22 @@ class ProcessingPipeline:
             )
             self.database.update_asset(job_id, status="in_use")
             if mode is ExtractionMode.SPEECH:
-                self._run_speech(job_id, video_path, info, cancelled)
+                if acquired.transcript_segments:
+                    self._run_supplied_transcript(job_id, media_path, info, acquired)
+                else:
+                    self._run_speech(
+                        job_id, media_path, info, cancelled,
+                        language_hint=acquired.language_hint,
+                    )
             else:
-                self._run_visual(job_id, video_path, info, cancelled)
-            self._stage(job_id, JobStatus.CLEANING_SOURCE, "正在清理临时视频", 98)
+                self._run_visual(job_id, media_path, info, cancelled)
+            self._stage(job_id, JobStatus.CLEANING_SOURCE, "正在清理临时媒体", 98)
             cleaned_at = self._cleanup_source(job_id, preserve_link=False)
             if cleaned_at:
                 self.database.update_job(
                     job_id,
                     JobStatus.READY,
-                    label="已完成，临时视频已清理",
+                    label="已完成，临时媒体已清理",
                     progress=100,
                     completed_at=datetime.now(timezone.utc).isoformat(),
                 )
@@ -99,7 +130,7 @@ class ProcessingPipeline:
                 self.database.update_job(
                     job_id,
                     JobStatus.READY,
-                    label="已完成，但临时视频清理失败",
+                    label="已完成，但临时媒体清理失败",
                     progress=100,
                     error_code="SOURCE_CLEANUP_FAILED",
                     error_message=error("SOURCE_CLEANUP_FAILED").public_message,
@@ -192,7 +223,15 @@ class ProcessingPipeline:
             model_name=" + ".join(sorted({frame.model for frame in frames})) or "unknown",
         )
 
-    def _run_speech(self, job_id: str, video_path, info: VideoInfo, cancelled) -> None:
+    def _run_speech(
+        self,
+        job_id: str,
+        video_path,
+        info: VideoInfo,
+        cancelled,
+        *,
+        language_hint: str = "",
+    ) -> None:
         paths = job_paths(self.settings, job_id)
         provider = create_speech_provider(self.settings)
         status = provider.check_environment()
@@ -215,7 +254,13 @@ class ProcessingPipeline:
                 total=total,
             )
 
-        result = provider.transcribe(video_path, paths.work / "speech", progress, cancelled)
+        result = provider.transcribe(
+            video_path,
+            paths.work / "speech",
+            progress,
+            cancelled,
+            language_hint=language_hint,
+        )
         self._check_cancelled(job_id)
         self.database.replace_speech_segments(job_id, result.segments)
         self._stage(job_id, JobStatus.GENERATING, "正在生成逐字稿和字幕", 92)
@@ -229,11 +274,33 @@ class ProcessingPipeline:
             model_name=result.model,
         )
 
+    def _run_supplied_transcript(self, job_id: str, input_path, info: VideoInfo, acquired) -> None:
+        paths = job_paths(self.settings, job_id)
+        result = SpeechResult(
+            segments=list(acquired.transcript_segments),
+            provider=acquired.transcript_provider or "published_subtitle",
+            provider_version=acquired.transcript_provider_version or "unknown",
+            model=acquired.transcript_model or "published-subtitle",
+            language=acquired.transcript_language,
+            duration_ms=0.0,
+        )
+        self.database.replace_speech_segments(job_id, result.segments)
+        self._stage(job_id, JobStatus.GENERATING, "正在生成发布字幕文案", 92)
+        generate_speech_outputs(paths.output, input_path, info, result)
+        self.database.update_job(
+            job_id,
+            JobStatus.GENERATING,
+            label="B站发布字幕文案已生成",
+            progress=96,
+            engine_name=result.provider,
+            model_name=result.model,
+        )
+
     def _fail(self, job_id: str, row: dict, code: str, message: str) -> None:
-        preserve_link = row["source_type"] == "wx_channel_link" and int(row.get("attempt_count") or 0) < 1
+        preserve_link = row["source_type"] in {"wx_channel_link", "bilibili_link"} and int(row.get("attempt_count") or 0) < 1
         cleaned = self._cleanup_source(job_id, preserve_link=preserve_link)
         if not cleaned:
-            message = f"{message}；临时视频清理失败，请检查本机任务目录。"
+            message = f"{message}；临时媒体清理失败，请检查本机任务目录。"
         self.database.update_job(
             job_id,
             JobStatus.FAILED,

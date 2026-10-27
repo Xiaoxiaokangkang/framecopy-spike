@@ -9,6 +9,7 @@ from framecopy.config import Settings
 from framecopy.database import Database
 from framecopy.engine.speech import SpeechProviderStatus
 from framecopy.models import ExtractionMode, JobStatus, Segment
+from framecopy.sources.bilibili import BilibiliInspection, BilibiliPart
 from framecopy.secret_store import LocalSecretStore, WX_YUANBAO_COOKIE
 
 
@@ -50,6 +51,8 @@ def test_home_page_has_no_invite_code_field() -> None:
     assert "http://127.0.0.1:8000/" in page
     assert page.count('name="extraction-mode"') == 2
     assert "「分享」→「复制链接」" in page
+    assert "B站链接" in page
+    assert "选择分P" in page
 
 
 def test_result_page_explains_how_to_return_for_another_video() -> None:
@@ -89,6 +92,81 @@ class FakeSpeechProvider:
             "fake",
             "test-model",
         )
+
+
+class FakeBilibiliProvider:
+    def __init__(self, _settings, *, multi: bool = False, subtitles: bool = True) -> None:
+        self.multi = multi
+        self.subtitles = subtitles
+
+    def check_environment(self):
+        from framecopy.sources.base import ProviderStatus
+        return ProviderStatus(True, "B站解析可用", "test")
+
+    def inspect(self, text: str) -> BilibiliInspection:
+        if self.multi:
+            return BilibiliInspection(
+                text, "多P", None,
+                parts=(
+                    BilibiliPart(1, "P1", "https://www.bilibili.com/video/BV1TEST?p=1"),
+                    BilibiliPart(2, "P2", "https://www.bilibili.com/video/BV1TEST?p=2"),
+                ),
+            )
+        return BilibiliInspection(
+            "https://www.bilibili.com/video/BV1TEST?p=1",
+            "B站测试标题",
+            120,
+            subtitle_languages=("zh-Hans",) if self.subtitles else (),
+        )
+
+
+def test_bilibili_inspection_exposes_parts_without_choosing_for_user(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        "framecopy.api.BilibiliProvider",
+        lambda settings: FakeBilibiliProvider(settings, multi=True),
+    )
+    settings = Settings(data_dir=tmp_path, database_path=tmp_path / "test.db")
+    database = Database(settings)
+    database.initialize()
+    app = FastAPI()
+    app.include_router(create_router(settings, database, RecordingQueue()))
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/providers/bilibili/inspect",
+            json={"text": "https://www.bilibili.com/video/BV1TEST"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["requires_part_selection"] is True
+    assert len(response.json()["parts"]) == 2
+
+
+def test_bilibili_subtitle_job_does_not_require_whisper(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("framecopy.api.BilibiliProvider", FakeBilibiliProvider)
+    monkeypatch.setattr(
+        "framecopy.api.create_speech_provider",
+        lambda _: (_ for _ in ()).throw(AssertionError("subtitle job must not check Whisper")),
+    )
+    settings = Settings(data_dir=tmp_path, database_path=tmp_path / "test.db")
+    database = Database(settings)
+    database.initialize()
+    queue = RecordingQueue()
+    app = FastAPI()
+    app.include_router(create_router(settings, database, queue))
+
+    with TestClient(app) as client:
+        response = client.post("/api/jobs/bilibili", json={
+            "url": "https://www.bilibili.com/video/BV1TEST?p=1",
+            "transcript_source": "subtitle",
+            "language": "zh",
+        })
+
+    assert response.status_code == 202
+    row = database.get_job(response.json()["job_id"])
+    assert row is not None
+    assert row["source_type"] == "bilibili_link"
+    assert row["source_name"] == "B站测试标题"
 
 
 def test_upload_routes_explicit_speech_mode(monkeypatch, tmp_path: Path) -> None:

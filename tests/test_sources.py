@@ -47,5 +47,6 @@ def test_provider_ignores_encrypted_link_payload(tmp_path: Path) -> None:
         lambda *_: None,
         lambda: False,
     )
-    assert result == (input_dir / "download.mp4").resolve()
+    assert result.path == (input_dir / "download.mp4").resolve()
+    assert result.kind == "video"
 

@@ -269,6 +269,17 @@ class Database:
                 (*values.values(), job_id),
             )
 
+    def update_source_name(self, job_id: str, source_name: str) -> None:
+        safe_name = source_name.strip()[:255]
+        if not safe_name:
+            return
+        with self.connect() as connection:
+            connection.execute("UPDATE jobs SET source_name=? WHERE id=?", (safe_name, job_id))
+            connection.execute(
+                "UPDATE video_assets SET source_name=? WHERE id=(SELECT asset_id FROM jobs WHERE id=?)",
+                (safe_name, job_id),
+            )
+
     def record_asset_cleanup_failure(self, job_id: str, error_name: str) -> None:
         with self.connect() as connection:
             connection.execute(

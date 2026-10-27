@@ -128,7 +128,8 @@ def test_worker_writes_large_result_to_file_and_reports_chunk_progress(
     assert len(calls) == 3
     assert calls[0]["condition_on_previous_text"] is False
     assert "language" not in calls[0]
-    assert calls[1]["language"] == "zh"
+    assert "language" not in calls[1]
+    assert result["language"] == "zh"
     assert json.loads(progress_path.read_text(encoding="utf-8")) == {
         "state": "completed",
         "current": 3,

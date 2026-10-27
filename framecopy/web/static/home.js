@@ -1,23 +1,42 @@
 const tabs = document.querySelectorAll('.tab');
-const panels = { link: document.querySelector('#link-form'), upload: document.querySelector('#upload-form') };
+const panels = {
+  link: document.querySelector('#link-form'),
+  bilibili: document.querySelector('#bilibili-form'),
+  upload: document.querySelector('#upload-form')
+};
 const message = document.querySelector('#message');
 const modeStatus = document.querySelector('#mode-status');
 let speechStatus = null;
+let bilibiliInspection = null;
 
 function selectTab(name) {
   tabs.forEach(tab => tab.classList.toggle('active', tab.dataset.tab === name));
   Object.entries(panels).forEach(([key, panel]) => panel.classList.toggle('active', key === name));
+  const visual = document.querySelector('input[name="extraction-mode"][value="visual"]');
+  if (name === 'bilibili') {
+    visual.disabled = true;
+    document.querySelector('input[name="extraction-mode"][value="speech"]').checked = true;
+  } else {
+    visual.disabled = false;
+  }
+  updateModeStatus();
   message.hidden = true;
 }
 tabs.forEach(tab => tab.addEventListener('click', () => selectTab(tab.dataset.tab)));
-if (new URLSearchParams(location.search).get('tab') === 'upload') selectTab('upload');
+const requestedTab = new URLSearchParams(location.search).get('tab');
+if (['upload', 'bilibili'].includes(requestedTab)) selectTab(requestedTab);
 
 document.querySelectorAll('input[name="extraction-mode"]').forEach(input => {
   input.addEventListener('change', updateModeStatus);
 });
+document.querySelectorAll('input[name="bilibili-transcript-source"]').forEach(input => {
+  input.addEventListener('change', updateModeStatus);
+});
 const requestedMode = new URLSearchParams(location.search).get('mode');
 if (['visual', 'speech'].includes(requestedMode)) {
-  document.querySelector(`input[name="extraction-mode"][value="${requestedMode}"]`).checked = true;
+  const requestedInput = document.querySelector(`input[name="extraction-mode"][value="${requestedMode}"]`);
+  if (!requestedInput.disabled) requestedInput.checked = true;
+  updateModeStatus();
 }
 
 async function refreshSpeechStatus() {
@@ -36,17 +55,25 @@ function selectedMode() {
 
 function updateModeStatus() {
   const mode = selectedMode();
+  const isBilibili = panels.bilibili.classList.contains('active');
+  const bilibiliSource = document.querySelector(
+    'input[name="bilibili-transcript-source"]:checked'
+  )?.value;
   modeStatus.classList.remove('bad');
   if (!mode) {
     modeStatus.textContent = '请先选择提取内容';
   } else if (mode === 'visual') {
     modeStatus.textContent = '将识别画面文字并保留关键帧';
+  } else if (isBilibili && bilibiliSource === 'subtitle') {
+    modeStatus.textContent = '将直接使用视频已发布字幕，不需要本地语音模型';
   } else if (!speechStatus) {
     modeStatus.textContent = '正在检查语音识别环境…';
   } else {
     modeStatus.textContent = speechStatus.available
       ? '本地语音识别已就绪'
-      : `${speechStatus.message}。不会先获取视频。`;
+      : isBilibili
+        ? `${speechStatus.message}；如果视频有发布字幕，仍可直接提取。`
+        : `${speechStatus.message}。不会先获取视频。`;
     modeStatus.classList.toggle('bad', !speechStatus.available);
   }
 }
@@ -55,6 +82,11 @@ refreshSpeechStatus();
 
 document.querySelector('#paste-button').addEventListener('click', async () => {
   try { document.querySelector('#share-text').value = await navigator.clipboard.readText(); }
+  catch { showError('浏览器没有授予剪贴板权限，请长按输入框后选择“粘贴”。'); }
+});
+
+document.querySelector('#bilibili-paste-button').addEventListener('click', async () => {
+  try { document.querySelector('#bilibili-text').value = await navigator.clipboard.readText(); }
   catch { showError('浏览器没有授予剪贴板权限，请长按输入框后选择“粘贴”。'); }
 });
 
@@ -79,6 +111,99 @@ refreshProviderStatus().catch(() => {
   element.textContent = '无法读取视频号解析状态';
   element.classList.add('bad');
 });
+
+async function refreshBilibiliStatus() {
+  const element = document.querySelector('#bilibili-provider-status');
+  try {
+    const response = await fetch('/api/providers/bilibili/status');
+    const status = await response.json();
+    element.textContent = status.message;
+    element.classList.remove('ok', 'bad');
+    element.classList.add(status.available ? 'ok' : 'bad');
+  } catch {
+    element.textContent = '无法读取B站解析器状态';
+    element.classList.add('bad');
+  }
+}
+
+refreshBilibiliStatus();
+
+document.querySelector('#inspect-bilibili').addEventListener('click', async () => {
+  const text = document.querySelector('#bilibili-text').value.trim();
+  if (!text) return showError('请先粘贴B站视频链接。');
+  await inspectBilibili(text);
+});
+
+document.querySelector('#bilibili-part').addEventListener('change', async event => {
+  if (!event.target.value) return;
+  await inspectBilibili(event.target.value);
+});
+
+async function inspectBilibili(text) {
+  message.hidden = true;
+  const button = document.querySelector('#inspect-bilibili');
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = '正在读取…';
+  document.querySelector('#bilibili-submit').disabled = true;
+  try {
+    const response = await fetch('/api/providers/bilibili/inspect', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text})
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      const detail = data.detail;
+      throw new Error(typeof detail === 'object' ? detail.message : detail || '无法读取B站视频');
+    }
+    renderBilibiliInspection(data);
+  } catch (error) {
+    bilibiliInspection = null;
+    showError(error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = original;
+  }
+}
+
+function renderBilibiliInspection(data) {
+  bilibiliInspection = data.requires_part_selection ? null : data;
+  document.querySelector('#bilibili-options').hidden = false;
+  document.querySelector('#bilibili-title').textContent = data.title || 'B站视频';
+  document.querySelector('#bilibili-meta').textContent = data.duration
+    ? `时长 ${formatDuration(data.duration)}`
+    : '时长待解析';
+  const partField = document.querySelector('#bilibili-part-field');
+  const partSelect = document.querySelector('#bilibili-part');
+  if (data.requires_part_selection) {
+    partField.hidden = false;
+    partSelect.innerHTML = '<option value="">请选择要处理的分P</option>';
+    data.parts.forEach(part => {
+      const option = document.createElement('option');
+      option.value = part.url;
+      option.textContent = `P${part.index} · ${part.title}`;
+      partSelect.appendChild(option);
+    });
+    document.querySelector('#bilibili-subtitle-hint').textContent = '选择分P后才会检查该分P的字幕。';
+  } else {
+    partField.hidden = true;
+    partSelect.innerHTML = '';
+    document.querySelector('#bilibili-text').value = data.url;
+    const subtitleOption = document.querySelector('#bilibili-subtitle-option');
+    const subtitleInput = subtitleOption.querySelector('input');
+    subtitleInput.disabled = !data.has_subtitles;
+    subtitleOption.classList.toggle('disabled', !data.has_subtitles);
+    if (!data.has_subtitles && subtitleInput.checked) {
+      document.querySelector('input[name="bilibili-transcript-source"][value="asr"]').checked = true;
+    }
+    document.querySelector('#bilibili-subtitle-hint').textContent = data.has_subtitles
+      ? `检测到已发布字幕：${data.subtitle_languages.join(', ')}`
+      : '未检测到发布字幕，请使用本地语音识别。';
+    updateModeStatus();
+  }
+  document.querySelector('#bilibili-submit').disabled = data.requires_part_selection;
+}
 
 document.querySelector('#save-credential').addEventListener('click', async () => {
   const input = document.querySelector('#yuanbao-cookie');
@@ -135,6 +260,21 @@ document.querySelector('#upload-form').addEventListener('submit', async event =>
   await submit('/api/jobs/upload', {body: data});
 });
 
+document.querySelector('#bilibili-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (!bilibiliInspection) return showError('请先读取视频信息并选择分P。');
+  const transcriptSource = document.querySelector('input[name="bilibili-transcript-source"]:checked').value;
+  const language = document.querySelector('#bilibili-language').value;
+  await submit('/api/jobs/bilibili', {
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      url: bilibiliInspection.url,
+      transcript_source: transcriptSource,
+      language
+    })
+  });
+});
+
 async function submit(url, options) {
   message.hidden = true;
   const button = document.querySelector('.panel.active .primary');
@@ -165,4 +305,11 @@ function showCredentialMessage(text, danger) {
   element.classList.toggle('danger', danger);
 }
 function formatBytes(value) { return value < 1024 ** 2 ? `${(value / 1024).toFixed(0)} KB` : `${(value / 1024 ** 2).toFixed(1)} MB`; }
+function formatDuration(seconds) {
+  const total = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const rest = total % 60;
+  return hours ? `${hours}:${String(minutes).padStart(2,'0')}:${String(rest).padStart(2,'0')}` : `${minutes}:${String(rest).padStart(2,'0')}`;
+}
 

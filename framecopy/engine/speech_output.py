@@ -29,7 +29,7 @@ def generate_speech_outputs(
         "extraction_mode": "speech",
         "input_sha256": _sha256(input_path),
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "pipeline_version": "0.5.0",
+        "pipeline_version": "0.6.0",
         "speech": {
             "provider": result.provider,
             "provider_version": result.provider_version,

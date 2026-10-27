@@ -90,6 +90,8 @@ class MlxWhisperProvider:
         work_dir: Path,
         progress: ProgressCallback,
         cancelled: CancelCallback,
+        *,
+        language_hint: str = "",
     ) -> SpeechResult:
         status = self.check_environment()
         if not status.available:
@@ -149,6 +151,8 @@ class MlxWhisperProvider:
             "--chunk-seconds", str(self.settings.speech_chunk_seconds),
             "--overlap-seconds", str(self.settings.speech_chunk_overlap_seconds),
         ]
+        if language_hint:
+            worker_command.extend(["--language", language_hint])
 
         def run_worker() -> None:
             remaining = max(1, int(deadline - time.monotonic()))

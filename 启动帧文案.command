@@ -4,6 +4,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
+if [[ -d /opt/homebrew/bin ]]; then
+  export PATH="/opt/homebrew/bin:$PATH"
+fi
+
 APP_URL="http://127.0.0.1:8000/"
 HEALTH_URL="http://127.0.0.1:8000/api/health"
 PID_FILE="$SCRIPT_DIR/data/framecopy.pid"

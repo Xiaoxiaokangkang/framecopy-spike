@@ -52,7 +52,7 @@ async function loadResult() {
   reextract.textContent = currentMode === 'speech'
     ? '重新选择视频并提取画面文字'
     : '重新选择视频并提取语音文案';
-  const cleanup = data.job.source_cleanup_status === 'deleted' ? ' · 临时视频已清理' : ' · 请检查临时视频清理状态';
+  const cleanup = data.job.source_cleanup_status === 'deleted' ? ' · 临时媒体已清理' : ' · 请检查临时媒体清理状态';
   if (currentMode === 'speech') {
     document.querySelector('#result-title').textContent = '语音文案';
     const engine = data.speech?.provider ? ` · ${data.speech.provider}` : '';

@@ -42,7 +42,7 @@ if [[ -x /opt/homebrew/bin/brew ]]; then
 fi
 
 if ! command -v brew >/dev/null 2>&1; then
-  echo "尚未安装 Homebrew，它用于安装 FFmpeg 和 uv。"
+  echo "尚未安装 Homebrew，它用于安装 FFmpeg、uv 和 B站解析器。"
   echo "首次下载 Homebrew 通常需要等待 3–10 分钟，网络较慢时可能更久。"
   echo "终端暂时没有变化通常不是卡死，请不要关闭窗口或重复运行安装器。"
   read "answer?是否现在运行 Homebrew 官方安装程序？[Y/n] "
@@ -56,8 +56,8 @@ if ! command -v brew >/dev/null 2>&1; then
 fi
 
 echo
-echo "[1/6] 安装系统组件 FFmpeg 和 uv…"
-brew install ffmpeg uv
+echo "[1/6] 安装系统组件 FFmpeg、uv 和 B站解析器…"
+brew install ffmpeg uv yt-dlp
 
 echo
 echo "[2/6] 安装并固定 Python 3.12…"
@@ -93,6 +93,12 @@ if [[ -x .tools/wx_video_download/wx_video_download ]]; then
 else
   echo "提示：视频号解析器尚未配置。"
   echo "本地上传已经可以使用；如需粘贴视频号链接，请运行“配置视频号解析器.command”。"
+fi
+
+if command -v yt-dlp >/dev/null 2>&1; then
+  echo "B站公开视频解析器已就绪。"
+else
+  echo "提示：B站解析器未安装，可重新运行本安装程序。"
 fi
 
 echo

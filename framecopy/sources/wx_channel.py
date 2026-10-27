@@ -9,7 +9,13 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from framecopy.errors import error
-from framecopy.sources.base import CancelCallback, ProgressCallback, ProviderStatus, VideoSourceProvider
+from framecopy.sources.base import (
+    AcquiredMedia,
+    CancelCallback,
+    ProgressCallback,
+    ProviderStatus,
+    VideoSourceProvider,
+)
 
 
 WX_URL_PATTERN = re.compile(r"https://weixin\.qq\.com/sph/[A-Za-z0-9_?=&%./+-]+")
@@ -80,7 +86,7 @@ class WxChannelCloudProvider(VideoSourceProvider):
         job_dir: Path,
         progress: ProgressCallback,
         cancelled: CancelCallback,
-    ) -> Path:
+    ) -> AcquiredMedia:
         status = self.check_environment()
         if not status.available:
             raise error("LINK_ENVIRONMENT_UNAVAILABLE")
@@ -89,7 +95,7 @@ class WxChannelCloudProvider(VideoSourceProvider):
         existing = _video_candidates(output_dir)
         if len(existing) == 1:
             progress("视频获取完成", 10)
-            return existing[0]
+            return AcquiredMedia(path=existing[0], kind="video")
         progress("正在获取视频", 6)
         args = [*shlex.split(self.command), "--url", url, "--output-dir", str(output_dir)]
         process = subprocess.Popen(
@@ -114,5 +120,5 @@ class WxChannelCloudProvider(VideoSourceProvider):
         if len(candidates) != 1:
             raise error("LINK_DOWNLOAD_FAILED", detail="解析器未返回唯一视频文件")
         progress("视频获取完成", 10)
-        return candidates[0]
+        return AcquiredMedia(path=candidates[0], kind="video")
 

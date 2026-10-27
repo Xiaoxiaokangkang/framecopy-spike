@@ -1,7 +1,12 @@
 from pathlib import Path
 
 from framecopy.config import Settings
-from framecopy.source_payload import delete_link_source, load_job_source, save_link_source
+from framecopy.source_payload import (
+    delete_link_source,
+    load_job_source,
+    save_bilibili_source,
+    save_link_source,
+)
 
 
 def test_link_source_is_encrypted_and_removed(tmp_path: Path) -> None:
@@ -19,3 +24,24 @@ def test_link_source_is_encrypted_and_removed(tmp_path: Path) -> None:
     assert load_job_source(settings, job_dir, "wx_channel_link") == url
     delete_link_source(job_dir)
     assert not (job_dir / "input" / "source.enc").exists()
+
+
+def test_bilibili_options_are_encrypted_with_the_link(tmp_path: Path) -> None:
+    settings = Settings(
+        data_dir=tmp_path,
+        database_path=tmp_path / "test.db",
+        secret_key="test-secret",
+    )
+    job_dir = tmp_path / "jobs" / ("b" * 32)
+    (job_dir / "input").mkdir(parents=True)
+    payload = {
+        "url": "https://www.bilibili.com/video/BV1TEST?p=2",
+        "transcript_source": "subtitle",
+        "language": "zh",
+    }
+
+    save_bilibili_source(settings, job_dir, payload)
+
+    stored = (job_dir / "input" / "source.enc").read_bytes()
+    assert payload["url"].encode() not in stored
+    assert load_job_source(settings, job_dir, "bilibili_link") == payload
